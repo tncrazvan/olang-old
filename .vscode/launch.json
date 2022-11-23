@@ -1,0 +1,47 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Listen (paw)",
+            "type": "php",
+            "request": "launch",
+            "port": 9003
+        },
+        {
+            "name": "main (paw)",
+            "type": "php",
+            "request": "launch",
+            "program": "${workspaceFolder}/bin/start",
+            "cwd": "${workspaceFolder}",
+            "args": [
+                "-l./src/lib/",
+                "-e=\"./src/main.php\"",
+                "--sync"
+            ],
+            "runtimeArgs": [
+                "-dxdebug.start_with_request=yes",
+                "-dxdebug.mode=debug",
+            ],
+            "env": {
+                "XDEBUG_MODE": "debug",
+                "XDEBUG_CONFIG": "client_port=${port}"
+            }
+        },
+        {
+            "name": "test (paw)",
+            "type": "php",
+            "request": "launch",
+            "program": "${workspaceFolder}/vendor/bin/phpunit",
+            "cwd": "${workspaceFolder}",
+            "args": [ "tests/TestSuiteParser.php" ],
+            "runtimeArgs": [
+                "-dxdebug.start_with_request=yes",
+                "-dxdebug.mode=debug",
+            ],
+            "env": {
+                "XDEBUG_MODE": "debug",
+                "XDEBUG_CONFIG": "client_port=${port}"
+            }
+        }
+    ]
+}

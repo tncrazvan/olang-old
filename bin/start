@@ -1,0 +1,52 @@
+#!/usr/bin/env php
+<?php
+
+use CatPaw\Attributes\Option;
+use CatPaw\Bootstrap;
+$_ENV = [
+    ...$_ENV,
+    ...getenv(),
+];
+require 'vendor/autoload.php';
+
+
+$entryOption       = new Option('-e');
+$nameOption        = new Option('-n');
+$librariesOption   = new Option('-l');
+$resourcesOption   = new Option('-r');
+$dieOnChangeOption = new Option('-d');
+$watchOption       = new Option('-w');
+$infoOption        = new Option('-i');
+
+$entry       = $entryOption->findValue()                  ?? '';
+$name        = $nameOption->findValue()                   ?? 'App';
+$libraries   = $librariesOption->findValue()              ?? '';
+$resources   = $resourcesOption->findValue()              ?? '';
+$dieOnChange = $dieOnChangeOption->findValue(bool::class) ?? false;
+$watch       = $watchOption->findValue(bool::class)       ?? false;
+$info        = $infoOption->findValue(bool::class)        ?? false;
+
+try {
+    if ($watch) {
+        Bootstrap::spawn(
+            start: __FILE__,
+            entry: $entry,
+            name: $name,
+            libraries: $libraries,
+            info: $info,
+            watch: true,
+            resources: $resources,
+        );
+    } else {
+        Bootstrap::start(
+            entry: $entry,
+            name: $name,
+            libraries: $libraries,
+            info: $info,
+            dieOnChange: $dieOnChange,
+            resources: $resources,
+        );
+    }
+} catch (Throwable $e) {
+    die(((string)$e).PHP_EOL);
+}

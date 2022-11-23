@@ -1,0 +1,45 @@
+execute := \n|;
+
+assignment := =
+greaterThan := >
+lesserThan := <
+greaterThanOrEquals := >=
+lesserThanOrEquals := <=
+
+let := let
+constant := const
+
+character := <blank>q|w|e|r|t...
+number := 0|1|2|3|4|5|6|7|8|9
+
+type := int|float|string|<trueName>::type
+typeIndicator := as
+variableTypeDefinition := <typeIndicator> <type>
+
+trueNameContinued := <character><trueName>
+trueName := <character>|<trueNameContinued>
+typedName := <trueName><variableTypeDefinition>
+name := <trueName>|<typedName>
+
+listOfCharactersContinued := <character><listOfCharacters>
+listOfCharacters := <character>|<listOfCharactersContinued>
+string := "<listOfCharacters>"|'<listOfCharacters>'
+sign := -|+
+signedInt := <sign><number>
+int := <number>|<signedInt>
+float := <int>.<number>
+boolean := true|false
+
+value := <string>|<int>|<float>|<boolean>|<structCreation>|<trueName>
+
+structDefinitionProperty := <name> <assignment> <value> <execute>
+structDefinitionContinued := <structDefinitionProperty><structDefinitionBody>
+structDefinitionBody := <structDefinitionProperty>|<structDefinitionBody>
+structDefinition := struct <name> { <structDefinitionBody> }
+
+structCreationProperty := <trueName> <assignment> <value> <execute>
+structCreationBodyContinued := <structCreationProperty><structCreationBody>
+structCreationBody := <structCreationProperty>|<structCreationBodyContinued>
+structCreation := <trueName> { <structCreationBody> }
+
+variableDefinition := <let> <name> <assignment> <value> <execute>
