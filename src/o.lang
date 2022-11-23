@@ -7,7 +7,7 @@ greaterThanOrEquals := >=
 lesserThanOrEquals := <=
 
 let := let
-constant := const
+const := const
 
 character := <blank>q|w|e|r|t...
 number := 0|1|2|3|4|5|6|7|8|9
@@ -24,6 +24,7 @@ name := <trueName>|<typedName>
 listOfCharactersContinued := <character><listOfCharacters>
 listOfCharacters := <character>|<listOfCharactersContinued>
 string := "<listOfCharacters>"|'<listOfCharacters>'
+
 sign := -|+
 signedInt := <sign><number>
 int := <number>|<signedInt>

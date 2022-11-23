@@ -1,6 +1,11 @@
 <?php
 namespace CatPaw\Q;
 
+use function CatPaw\Store\writable;
+
+use Catpaw\Store\Writable;
+use Error;
+
 /**
  * @param  false|string $code
  * @return mixed
@@ -14,260 +19,169 @@ function source($code = false) {
 }
 
 class TokenMatch {
+    /**
+     * @param  string $previous
+     * @param  string $token
+     * @return void
+     */
     public function __construct(
-        public string $previous,
-        public string $token,
+        public $previous,
+        public $token,
     ) {
     }
+}
+
+/** @return array<string,string>  */
+function map() {
+    static $map = [];
+    if (!$map) {
+        $map = [
+            "execute" => "\n|;",
+
+            "assignment"          => "=",
+            "greaterThan"         => ">",
+            "lesserThan"          => "<",
+            "greaterThanOrEquals" => ">=",
+            "lesserThanOrEquals"  => "<=",
+            
+            "let"   => "let",
+            "const" => "const",
+
+            "character" => "_",
+            "number"    => "_",
+
+            "type"                   => "int|float|string|<trueName>::type",
+            "typeIndicator"          => "as",
+            "variableTypeDefinition" => "<typeIndicator> <type>",
+
+            "trueNameContinued" => "<character><trueName>",
+            "trueName"          => "<character>|<trueNameContinued>",
+            "typedName"         => "<truename><variableTypeDefinition>",
+            "name"              => "<trueName>|<typedMame>",
+
+            "listofCharactersContinued" => "<character><listOfCharacters>",
+            "listOfCharacters"          => "<character>|<listOfCharactersContinued>",
+            "string"                    => "\"<listOfCharacters>\"|'<listOfCharacters>'",
+
+            "sign"      => "-|+",
+            "signedInt" => "<sign><number>",
+            "int"       => "<number>|<signedInt>",
+            "float"     => "<int>.<number>",
+            "<boolean>" => "true|false",
+
+            "value" => "<string>|<int>|<float>|<boolean>|<trueName>|<structCreation>",
+        ];
+    }
+    return $map;
 }
 
 /**
- * @param  array<string>             $tokens
+ * @param  string $alias
+ * @return string
+ */
+function unalias($alias) {
+    $map = map();
+    if (preg_match('/\<(.+)\>/i', $alias, $match) && count($match) > 1) {
+        $unaliased = unalias($map[$match[1] ?? '']);
+        return preg_replace('/\<(.+)\>/i', $unaliased, $alias);
+    }
+    return $alias;
+}
+
+/**
+ * @param  string           $key
+ * @param  string           $stack
+ * @return false|TokenMatch
+ */
+function findKeyFromStack($key, $stack) {
+    $map  = map();
+    $keys = explode("|", $key);
+    foreach ($keys as $key) {
+        $key    = trim($key);
+        $tokens = explode("|", $map[$key] ?? '');
+        foreach ($tokens as $token) {
+            $token = unalias(preg_replace('/ +$/', '', preg_replace('/^ +/', '', $token)));
+            if (str_ends_with($stack, $token)) {
+                $tokenLength = strlen($token);
+                $stackLength = strlen($stack);
+                $previous    = substr($stack, 0, $stackLength - $tokenLength);
+                return new TokenMatch(
+                    previous: $previous,
+                    token: $token,
+                );
+            }
+        }
+    }
+    return false;
+}
+
+/**
+ * @param  string                    $key
  * @param  callable(TokenMatch):void $callback
  * @return void
  */
-function next($tokens, $callback) {
-    static $tail = '';
-    $tail .= source();
-    
-    foreach ($tokens as $token) {
-        if (preg_match('/'.$token.'$/', $tail, $matches)) {
-            return;
+function next($key, $callback) {
+    static $source = '';
+    static $i      = 0;
+    static $length = 0;
+
+    if (!$source) {
+        $source = source();
+        $length = strlen($source);
+        $i      = 0;
+    }
+
+    $stack = '';
+    while ($i < $length) {
+        $stack .= $source[$i];
+        if ($match = findKeyFromStack($key, $stack)) {
+            $i++;
+            $callback($match);
+            break;
         }
+        $i++;
     }
 }
 
-class StaticDictionary {
-    /**
-     * @param  string $execute
-     * @param  string $assignment
-     * @param  string $greaterThan
-     * @param  string $lesserThan
-     * @param  string $greaterThanOrEquals
-     * @param  string $lesserThanOrEquals
-     * @param  string $let
-     * @param  string $constant
-     * @param  string $character
-     * @param  string $number
-     * @param  string $type
-     * @param  string $typeIndicator
-     * @param  string $variableTypeDefinition
-     * @param  string $trueNameContinued
-     * @param  string $trueName
-     * @param  string $typedName
-     * @param  string $name
-     * @param  string $listOfCharactersContinued
-     * @param  string $listOfCharacters
-     * @param  string $string
-     * @param  string $sign
-     * @param  string $signedInt
-     * @param  string $int
-     * @param  string $float
-     * @param  string $boolean
-     * @param  string $value
-     * @param  string $structDefinitionProperty
-     * @param  string $structDefinitionContinued
-     * @param  string $structDefinitionBody
-     * @param  string $structDefinition
-     * @param  string $structCreationProperty
-     * @param  string $structCreationBodyContinued
-     * @param  string $structCreationBody
-     * @param  string $structCreation
-     * @param  string $variableDefinition
-     * @return void
-     */
-    public function __construct(
-        public $execute,
-        public $assignment,
-        public $greaterThan,
-        public $lesserThan,
-        public $greaterThanOrEquals,
-        public $lesserThanOrEquals,
-        public $let,
-        public $constant,
-        public $character,
-        public $number,
-        public $type,
-        public $typeIndicator,
-        public $variableTypeDefinition,
-        public $trueNameContinued,
-        public $trueName,
-        public $typedName,
-        public $name,
-        public $listOfCharactersContinued,
-        public $listOfCharacters,
-        public $string,
-        public $sign,
-        public $signedInt,
-        public $int,
-        public $float,
-        public $boolean,
-        public $value,
-        public $structDefinitionProperty,
-        public $structDefinitionContinued,
-        public $structDefinitionBody,
-        public $structDefinition,
-        public $structCreationProperty,
-        public $structCreationBodyContinued,
-        public $structCreationBody,
-        public $structCreation,
-        public $variableDefinition,
-    ) {
+class State {
+    /** @var false|Writable */
+    private static $state = false;
+
+    /** @return Writable  */
+    public static function use() {
+        if (!static::$state) {
+            static::$state = writable([]);
+        }
+        return static::$state;
     }
 }
 
-class DynamicDictionary {
-    /**
-     * @param  string $execute
-     * @param  string $assignment
-     * @param  string $greaterThan
-     * @param  string $lesserThan
-     * @param  string $greaterThanOrEquals
-     * @param  string $lesserThanOrEquals
-     * @param  string $let
-     * @param  string $constant
-     * @param  string $character
-     * @param  string $number
-     * @param  string $typeIndicator
-     * @param  string $trueName
-     * @param  string $type
-     * @param  string $variableTypeDefinition
-     * @param  string $typedName
-     * @param  string $name
-     * @param  string $listOfCharacters
-     * @param  string $string
-     * @param  string $sign
-     * @param  string $signedInt
-     * @param  string $int
-     * @param  string $float
-     * @param  string $boolean
-     * @param  string $structDefinitionProperty
-     * @param  string $structDefinitionBody
-     * @param  string $structDefinition
-     * @param  string $structCreationProperty
-     * @param  string $structCreationBody
-     * @param  string $structCreation
-     * @param  string $value
-     * @param  string $variableDefinition
-     * @return void
-     */
-    public function __construct(
-        public $execute,
-        public $assignment,
-        public $greaterThan,
-        public $lesserThan,
-        public $greaterThanOrEquals,
-        public $lesserThanOrEquals,
-        public $let,
-        public $constant,
-        public $character,
-        public $number,
-        public $typeIndicator,
-        public $trueName,
-        public $type,
-        public $variableTypeDefinition,
-        public $typedName,
-        public $name,
-        public $listOfCharacters,
-        public $string,
-        public $sign,
-        public $signedInt,
-        public $int,
-        public $float,
-        public $boolean,
-        public $structDefinitionProperty,
-        public $structDefinitionBody,
-        public $structDefinition,
-        public $structCreationProperty,
-        public $structCreationBody,
-        public $structCreation,
-        public $value,
-        public $variableDefinition,
-    ) {
-    }
+/** @return Writable  */
+function state() {
+    return State::use();
 }
 
-/** @return DynamicDictionary  */
-function dictionary() {
-    static $d = null;
-    if (!$d) {
-        $execute = '(\\n|;)';
+/**
+ * @param  string $key
+ * @param  string $value
+ * @throws Error
+ * @return void
+ */
+function set($key, $value) {
+    $data = state();
+    $data->set([
+        ...$data->get(),
+        "$key" => $value,
+    ]);
+}
 
-        $assignment          = '(=)';
-        $greaterThan         = '(>)';
-        $lesserThan          = '(<)';
-        $greaterThanOrEquals = '(>=)';
-        $lesserThanOrEquals  = '(<=)';
-
-        $let      = '(let)';
-        $constant = '(const)';
-
-        $character = '(.)';
-        $number    = '([1-9][0-9]*)';
-        
-        $typeIndicator          = 'as';
-        $trueName               = '('.$character.'+)';
-        $type                   = '((int)|(float)|(string)|('.$trueName.'::type))';
-        $variableTypeDefinition = $typeIndicator.'\\s+'.$type;
-        $typedName              = $trueName.'\\s+'.$variableTypeDefinition;
-        $name                   = '('.$trueName.')|('.$typedName.')';
-
-        $listOfCharacters = '('.$character.'+)';
-
-        $string    = '("'.$character.'")|(\''.$character.'\')';
-        $sign      = '(\\-|\\+)';
-        $signedInt = '('.$sign.')'.'('.$number.')';
-        $int       = '('.$number.')|('.$signedInt.')';
-        $float     = '('.$int.'\\.'.$number.')';
-        $boolean   = '(true|false)';
-        
-        $structDefinitionProperty = '(('.$name.')\\s*('.$assignment.')\\s*(.+)\\s*('.$execute.'))';
-        $structDefinitionBody     = '('.$structDefinitionProperty.'+)';
-        $structDefinition         = '(struct\\s+('.$name.')\\s*\\{\\s*('.$structDefinitionBody.')\\s*\\})';
-        
-        $structCreationProperty = '(('.$trueName.')\\s*('.$assignment.')\\s*(.+)\\s*('.$execute.'))';
-        $structCreationBody     = '('.$structCreationProperty.'+)';
-        $structCreation         = '(('.$trueName.')\\s*\\{\\s*('.$structCreationBody.')\\s*})';
-        
-        $value = '(('.$string.')|('.$int.')|('.$float.')|('.$boolean.')|('.$structCreation.')|('.$trueName.'))';
-
-        $variableDefinition = '(('.$let.')\\s*('.$name.')\\s*('.$assignment.')\\s*('.$value.')\\s*('.$execute.'))';
-
-        $d = new DynamicDictionary(
-            execute: $execute,
-            assignment: $assignment,
-            greaterThan: $greaterThan,
-            lesserThan: $lesserThan,
-            greaterThanOrEquals: $greaterThanOrEquals,
-            lesserThanOrEquals: $lesserThanOrEquals,
-            let: $let,
-            constant: $constant,
-            character: $character,
-            number: $number,
-            typeIndicator: $typeIndicator,
-            trueName: $trueName,
-            type: $type,
-            variableTypeDefinition: $variableTypeDefinition,
-            typedName: $typedName,
-            name: $name,
-            listOfCharacters: $listOfCharacters,
-            string: $string,
-            sign: $sign,
-            signedInt: $signedInt,
-            int: $int,
-            float: $float,
-            boolean: $boolean,
-            structDefinitionProperty: $structDefinitionProperty,
-            structDefinitionBody: $structDefinitionBody,
-            structDefinition: $structDefinition,
-            structCreationProperty: $structCreationProperty,
-            structCreationBody: $structCreationBody,
-            structCreation: $structCreation,
-            value: $value,
-            variableDefinition: $variableDefinition,
-        );
-    }
-    return $d;
+/**
+ * @param  string $key
+ * @return string
+ */
+function get($key) {
+    $data = state();
+    return $data->get()[$key] ?? '';
 }
 
 /**
@@ -276,10 +190,21 @@ function dictionary() {
  */
 function parse($code) {
     source("$code\n");
-    $d = dictionary();
 
-    while (0 < next([$d->variableDefinition], function($_, ) use (&$wat) {
-    })) {
-        echo "next\n";
-    }
+    next("let", function($m) {
+        next("assignment", function($m) {
+            set("name", trim($m->previous));
+            next("execute", function($m) {
+                set("value", trim($m->previous));
+            });
+        });
+    });
+
+    $name  = get('name');
+    $value = get('value');
+
+    print_r([
+        "name"  => $name,
+        "value" => $value,
+    ]);
 }

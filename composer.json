@@ -10,8 +10,12 @@
             "XDEBUG_MODE=off php ./vendor/bin/php-cs-fixer fix src",
             "XDEBUG_MODE=off php ./vendor/bin/php-cs-fixer fix tests"
         ],
-        "action:test": [],
-        "test": [],
+        "action:test": [
+            "XDEBUG_MODE=off php vendor/bin/phpunit tests/TestSuiteParser.php"
+        ],
+        "test": [
+            "XDEBUG_MODE=debug php vendor/bin/phpunit tests/TestSuiteParser.php"
+        ],
         "start": "XDEBUG_MODE=debug php ./bin/start -e./src/main.php -l./src/lib/ -i",
         "watch": "XDEBUG_MODE=debug php ./bin/start -e./src/main.php -l./src/lib/ -r./resources/ -i -w",
         "build": "XDEBUG_MODE=off php -dphar.readonly=0 ./product.phar --build-config --build",
@@ -37,7 +41,8 @@
         "php": "^8.1",
         "catpaw/core": "^0.4",
         "amphp/amp": "^2.6",
-        "amphp/file": "^2.0"
+        "amphp/file": "^2.0",
+        "catpaw/store": "^0.4.98"
     },
     "autoload-dev": {
         "psr-4": {
