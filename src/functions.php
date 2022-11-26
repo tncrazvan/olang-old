@@ -6,6 +6,17 @@ use function CatPaw\Store\writable;
 use Catpaw\Store\Writable;
 use Error;
 
+
+/**
+ * @param  int $increase
+ * @return int
+ */
+function id($increase = 0) {
+    static $source_id = 0;
+    $source_id += $increase;
+    return $source_id;
+}
+
 /**
  * @param  false|string $code
  * @return mixed
@@ -14,6 +25,7 @@ function source($code = false) {
     static $sourceCode = '';
     if (false !== $code) {
         $sourceCode = $code;
+        id(1);
     }
     return $sourceCode;
 }
@@ -38,38 +50,26 @@ function map() {
         $map = [
             "execute" => "\n|;",
 
+            "if" => "if",
+
             "assignment"          => "=",
-            "greaterThan"         => ">",
-            "lesserThan"          => "<",
-            "greaterThanOrEquals" => ">=",
-            "lesserThanOrEquals"  => "<=",
+            "equals"              => "==",
+            "greater-than"        => ">",
+            "lesser-than"         => "<",
+            "greater-than-equals" => ">=",
+            "lesser-than-equals"  => "<=",
             
             "let"   => "let",
             "const" => "const",
 
-            "character" => "_",
-            "number"    => "_",
+            "type"          => "int|float|string",
+            "typeIndicator" => ":",
 
-            "type"                   => "int|float|string|<trueName>::type",
-            "typeIndicator"          => "as",
-            "variableTypeDefinition" => "<typeIndicator> <type>",
-
-            "trueNameContinued" => "<character><trueName>",
-            "trueName"          => "<character>|<trueNameContinued>",
-            "typedName"         => "<truename><variableTypeDefinition>",
-            "name"              => "<trueName>|<typedMame>",
-
-            "listofCharactersContinued" => "<character><listOfCharacters>",
-            "listOfCharacters"          => "<character>|<listOfCharactersContinued>",
-            "string"                    => "\"<listOfCharacters>\"|'<listOfCharacters>'",
-
-            "sign"      => "-|+",
-            "signedInt" => "<sign><number>",
-            "int"       => "<number>|<signedInt>",
-            "float"     => "<int>.<number>",
-            "<boolean>" => "true|false",
-
-            "value" => "<string>|<int>|<float>|<boolean>|<trueName>|<structCreation>",
+            "sign"       => "-|+",
+            "signed-int" => "<sign><number>",
+            "int"        => "<number>|<signedInt>",
+            "float"      => "<int>.<number>",
+            "<boolean>"  => "true|false",
         ];
     }
     return $map;
@@ -98,7 +98,7 @@ function findKeyFromStack($key, $stack) {
     $keys = explode("|", $key);
     foreach ($keys as $key) {
         $key    = trim($key);
-        $tokens = explode("|", $map[$key] ?? '');
+        $tokens = explode("|", $map[$key] ?? $key);
         foreach ($tokens as $token) {
             $token = unalias(preg_replace('/ +$/', '', preg_replace('/^ +/', '', $token)));
             if (str_ends_with($stack, $token)) {
@@ -116,19 +116,37 @@ function findKeyFromStack($key, $stack) {
 }
 
 /**
+ * @param  int|false $value
+ * @return int
+ */
+function index($value = false) {
+    static $i = 0;
+    if (false !== $value) {
+        $i = $value;
+    }
+
+    return $i;
+}
+
+/**
  * @param  string                    $key
  * @param  callable(TokenMatch):void $callback
- * @return void
+ * @return bool
  */
-function next($key, $callback) {
-    static $source = '';
-    static $i      = 0;
-    static $length = 0;
+function token($key, $callback) {
+    static $last_id = 0;
+    static $source  = '';
+    static $i       = 0;
+    static $length  = 0;
+    $i              = index();
+    $new_id         = id();
 
-    if (!$source) {
-        $source = source();
-        $length = strlen($source);
-        $i      = 0;
+    if (!$source || $last_id !== $new_id) {
+        $last_id = $new_id;
+        $source  = source();
+        $stack   = '';
+        $length  = strlen($source);
+        $i       = 0;
     }
 
     $stack = '';
@@ -136,11 +154,15 @@ function next($key, $callback) {
         $stack .= $source[$i];
         if ($match = findKeyFromStack($key, $stack)) {
             $i++;
+            index($i);
             $callback($match);
-            break;
+            return true;
         }
         $i++;
+        index($i);
     }
+
+    return false;
 }
 
 class State {
@@ -182,29 +204,4 @@ function set($key, $value) {
 function get($key) {
     $data = state();
     return $data->get()[$key] ?? '';
-}
-
-/**
- * @param  string $code
- * @return void
- */
-function parse($code) {
-    source("$code\n");
-
-    next("let", function($m) {
-        next("assignment", function($m) {
-            set("name", trim($m->previous));
-            next("execute", function($m) {
-                set("value", trim($m->previous));
-            });
-        });
-    });
-
-    $name  = get('name');
-    $value = get('value');
-
-    print_r([
-        "name"  => $name,
-        "value" => $value,
-    ]);
 }
