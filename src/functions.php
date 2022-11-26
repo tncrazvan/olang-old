@@ -128,12 +128,22 @@ function index($value = false) {
     return $i;
 }
 
+class Fallback {
+    /**
+     * @param  null|Fallback $else
+     * @return null|Fallback
+     */
+    public function else($else) {
+        return $else;
+    }
+}
+
 /**
- * @param  string                    $key
- * @param  callable(TokenMatch):void $callback
- * @return bool
+ * @param string $key
+ * @param  false|(callable(TokenMatch):void) $callback
+ * @return null|Fallback
  */
-function token($key, $callback) {
+function token($key, $callback = false) {
     static $last_id = 0;
     static $source  = '';
     static $i       = 0;
@@ -155,14 +165,16 @@ function token($key, $callback) {
         if ($match = findKeyFromStack($key, $stack)) {
             $i++;
             index($i);
-            $callback($match);
-            return true;
+            if ($callback) {
+                $callback($match);
+            }
+            return null;
         }
         $i++;
         index($i);
     }
 
-    return false;
+    return new Fallback();
 }
 
 class State {
