@@ -63,5 +63,24 @@ class TestSuiteParser extends TestCase {
         $this->assertEquals("1", get("left"));
         $this->assertEquals("<", get("token"));
         $this->assertEquals("3", get("right"));
+
+        source(<<<Q
+            if active {}
+            Q);
+        
+        token("if")
+        ?? token("{", fn ($m) => set("var-name", trim($m->previous)));
+
+        $this->assertEquals("active", get("var-name"));
+
+        source("if active and admin {}");
+
+        token("if")
+        ?? token("and|or", fn ($m) => set("left", trim($m->previous)) && set("operation", trim($m->token)))
+        ?? token("{", fn ($m) => set("right", trim($m->previous)));
+
+        $this->assertEquals("active", get("left"));
+        $this->assertEquals("and", get("operation"));
+        $this->assertEquals("admin", get("right"));
     }
 }

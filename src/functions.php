@@ -199,7 +199,7 @@ function state() {
  * @param  string $key
  * @param  string $value
  * @throws Error
- * @return void
+ * @return true
  */
 function set($key, $value) {
     $data = state();
@@ -207,6 +207,7 @@ function set($key, $value) {
         ...$data->get(),
         "$key" => $value,
     ]);
+    return true;
 }
 
 /**
