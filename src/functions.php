@@ -30,6 +30,11 @@ function source($code = false) {
     return $sourceCode;
 }
 
+/** @return string  */
+function advance() {
+    return trim(substr(source(), index()));
+}
+
 class TokenMatch {
     /**
      * @param  string $previous
@@ -43,64 +48,17 @@ class TokenMatch {
     }
 }
 
-/** @return array<string,string>  */
-function map() {
-    static $map = [];
-    if (!$map) {
-        $map = [
-            "execute" => "\n|;",
-
-            "if" => "if",
-
-            "assignment"          => "=",
-            "equals"              => "==",
-            "greater-than"        => ">",
-            "lesser-than"         => "<",
-            "greater-than-equals" => ">=",
-            "lesser-than-equals"  => "<=",
-            
-            "let"   => "let",
-            "const" => "const",
-
-            "type"          => "int|float|string",
-            "typeIndicator" => ":",
-
-            "sign"       => "-|+",
-            "signed-int" => "<sign><number>",
-            "int"        => "<number>|<signedInt>",
-            "float"      => "<int>.<number>",
-            "<boolean>"  => "true|false",
-        ];
-    }
-    return $map;
-}
-
-/**
- * @param  string $alias
- * @return string
- */
-function unalias($alias) {
-    $map = map();
-    if (preg_match('/\<(.+)\>/i', $alias, $match) && count($match) > 1) {
-        $unaliased = unalias($map[$match[1] ?? '']);
-        return preg_replace('/\<(.+)\>/i', $unaliased, $alias);
-    }
-    return $alias;
-}
-
 /**
  * @param  string           $key
  * @param  string           $stack
  * @return false|TokenMatch
  */
 function findKeyFromStack($key, $stack) {
-    $map  = map();
     $keys = explode("|", $key);
     foreach ($keys as $key) {
         $key    = trim($key);
-        $tokens = explode("|", $map[$key] ?? $key);
+        $tokens = explode("|", $key);
         foreach ($tokens as $token) {
-            $token = unalias(preg_replace('/ +$/', '', preg_replace('/^ +/', '', $token)));
             if (str_ends_with($stack, $token)) {
                 $tokenLength = strlen($token);
                 $stackLength = strlen($stack);
@@ -167,6 +125,7 @@ function token($key, $callback = false) {
             index($i);
             if ($callback) {
                 $callback($match);
+                source(advance());
             }
             return null;
         }
@@ -217,4 +176,35 @@ function set($key, $value) {
 function get($key) {
     $data = state();
     return $data->get()[$key] ?? '';
+}
+
+
+class Node {
+    /**
+     * @param  null|callable():string $toWASM
+     * @param  null|callable():string $toPHP
+     * @param  null|Node              $next
+     * @return void
+     */
+    public function __construct(
+        public $toWASM = null,
+        public $toPHP = null,
+        public $next = null,
+    ) {
+    }
+}
+
+
+/**
+ * @param bool $reset
+ * @return @return array<Node>
+ */
+function &ast($reset = false) {
+    static $ast = [];
+
+    if ($reset) {
+        $ast = [];
+    }
+
+    return $ast;
 }

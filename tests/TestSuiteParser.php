@@ -1,5 +1,6 @@
 <?php
 
+use function CatPaw\Q\ast;
 use function CatPaw\Q\get;
 use function CatPaw\Q\set;
 use function CatPaw\Q\source;
@@ -14,8 +15,8 @@ class TestSuiteParser extends TestCase {
             let var1 = 'lorem';
             Q);
         token("let") 
-        ?? token("assignment", fn ($m) => set("var-name", trim($m->previous))) 
-        ?? token("execute", fn ($m) => set("var-value", trim($m->previous)));
+        ?? token("=", fn ($m) => set("var-name", trim($m->previous))) 
+        ?? token(";", fn ($m) => set("var-value", trim($m->previous)));
 
         $this->assertEquals("var1", get("var-name"));
         $this->assertEquals("'lorem'", get("var-value"));
@@ -25,8 +26,8 @@ class TestSuiteParser extends TestCase {
             Q);
 
         token("let") 
-        ?? token("assignment", fn ($m) => set("var2-name", trim($m->previous)))
-        ?? token("execute", fn ($m) => set("var2-value", trim($m->previous)));
+        ?? token("=", fn ($m) => set("var2-name", trim($m->previous)))
+        ?? token(";", fn ($m) => set("var2-value", trim($m->previous)));
 
         $this->assertEquals("var2", get("var2-name"));
         $this->assertEquals("\"ipsum\"", get("var2-value"));
@@ -35,9 +36,9 @@ class TestSuiteParser extends TestCase {
             let var3: string = "test";
             Q);
         token("let")
-        ?? token("typeIndicator", fn ($m) => set("var3-name", trim($m->previous)))
-        ?? token("assignment", fn ($m) => set("var3-type", trim($m->previous)))
-        ?? token("execute", fn ($m) => set("var3-value", trim($m->previous)));
+        ?? token(":", fn ($m) => set("var3-name", trim($m->previous)))
+        ?? token("=", fn ($m) => set("var3-type", trim($m->previous)))
+        ?? token(";", fn ($m) => set("var3-value", trim($m->previous)));
 
         $this->assertEquals("var3", get("var3-name"));
         $this->assertEquals("string", get("var3-type"));
@@ -83,4 +84,75 @@ class TestSuiteParser extends TestCase {
         $this->assertEquals("and", get("operation"));
         $this->assertEquals("admin", get("right"));
     }
+
+    public function testSignedInt() {
+        source("-1;");
+        token("-|+", fn ($m) => set("sign", trim($m->token)));
+        token(";", fn ($m) => set("value", trim($m->previous)));
+        $this->assertEquals("-", get("sign"));
+        $this->assertEquals("1", get("value"));
+    }
+
+    public function testingDecodingConst() {
+        ast(true);
+        \Syntax\decode(<<<OLANG
+            const asd = "";
+            OLANG);
+        $ast = ast();
+
+        $output = '';
+        foreach ($ast as $node) {
+            $output .= ($node->toPHP)();
+        }
+        $this->assertEquals('const asd = "";', $output);
+    }
+
+    public function testingDecodingLet() {
+        ast(true);
+        \Syntax\decode(<<<OLANG
+            let asd = "";
+            OLANG);
+        $ast = ast();
+
+        $output = '';
+        foreach ($ast as $node) {
+            $output .= ($node->toPHP)();
+        }
+        $this->assertEquals('$asd = "";', $output);
+    }
+
+    public function testingDecodingFunction() {
+        ast(true);
+        \Syntax\decode(<<<OLANG
+            function test(){
+
+            }
+            OLANG);
+        $ast = ast();
+
+        $output = '';
+        foreach ($ast as $node) {
+            $output .= ($node->toPHP)();
+        }
+        $this->assertEquals('function test(){}', $output);
+    }
+
+    // public function testingDecodingFunctionWithLetParams() {
+    //     ast(true);
+    //     \Syntax\decode(<<<OLANG
+    //         function test(
+    //             let var1 = '';
+    //             let var2 = '';
+    //         ){
+
+    //         }
+    //         OLANG);
+    //     $ast = ast();
+
+    //     $output = '';
+    //     foreach ($ast as $node) {
+    //         $output .= ($node->toPHP)();
+    //     }
+    //     $this->assertEquals('function test(){}', $output);
+    // }
 }
