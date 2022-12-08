@@ -1,210 +1,141 @@
 <?php
-namespace CatPaw\Q;
 
-use function CatPaw\Store\writable;
-
-use Catpaw\Store\Writable;
-use Error;
-
-
-/**
- * @param  int $increase
- * @return int
- */
-function id($increase = 0) {
-    static $source_id = 0;
-    $source_id += $increase;
-    return $source_id;
-}
-
-/**
- * @param  false|string $code
- * @return mixed
- */
-function source($code = false) {
-    static $sourceCode = '';
-    if (false !== $code) {
-        $sourceCode = $code;
-        id(1);
-    }
-    return $sourceCode;
-}
-
-/** @return string  */
-function advance() {
-    return trim(substr(source(), index()));
-}
-
-class TokenMatch {
-    /**
-     * @param  string $previous
-     * @param  string $token
-     * @return void
-     */
-    public function __construct(
-        public $previous,
-        public $token,
-    ) {
-    }
-}
-
-/**
- * @param  string           $key
- * @param  string           $stack
- * @return false|TokenMatch
- */
-function findKeyFromStack($key, $stack) {
-    $keys = explode("|", $key);
-    foreach ($keys as $key) {
-        $key    = trim($key);
-        $tokens = explode("|", $key);
-        foreach ($tokens as $token) {
-            if (str_ends_with($stack, $token)) {
-                $tokenLength = strlen($token);
-                $stackLength = strlen($stack);
-                $previous    = substr($stack, 0, $stackLength - $tokenLength);
-                return new TokenMatch(
-                    previous: $previous,
-                    token: $token,
-                );
+namespace Olang\Internal {
+    function parameters(string &$source, callable $found) {
+        static $required = '/^(required|optional)<([\w\W]*)>/U';
+        static $name     = '/^([A-z]+[A-z0-9]*)/';
+    
+        $items = [];
+        while (preg_match($required, $source = trim($source), $matches) && isset($matches[2])) {
+            $source = preg_replace($required, '', $source, 1);
+            if (preg_match($name, $source = trim($source), $matches2) && isset($matches2[1])) {
+                $source  = preg_replace($name, '', $source, 1);
+                $items[] = $found(...[...array_slice($matches, 1), ...array_slice($matches2, 1)]);
             }
         }
+        return $items?$items:null;
     }
-    return false;
-}
-
-/**
- * @param  int|false $value
- * @return int
- */
-function index($value = false) {
-    static $i = 0;
-    if (false !== $value) {
-        $i = $value;
-    }
-
-    return $i;
-}
-
-class Fallback {
-    /**
-     * @param  null|Fallback $else
-     * @return null|Fallback
-     */
-    public function else($else) {
-        return $else;
-    }
-}
-
-/**
- * @param string $key
- * @param  false|(callable(TokenMatch):void) $callback
- * @return null|Fallback
- */
-function token($key, $callback = false) {
-    static $last_id = 0;
-    static $source  = '';
-    static $i       = 0;
-    static $length  = 0;
-    $i              = index();
-    $new_id         = id();
-
-    if (!$source || $last_id !== $new_id) {
-        $last_id = $new_id;
-        $source  = source();
-        $stack   = '';
-        $length  = strlen($source);
-        $i       = 0;
-    }
-
-    $stack = '';
-    while ($i < $length) {
-        $stack .= $source[$i];
-        if ($match = findKeyFromStack($key, $stack)) {
-            $i++;
-            index($i);
-            if ($callback) {
-                $callback($match);
-                source(advance());
-            }
-            return null;
+    
+    function name(string &$source, callable $found) {
+        static $name = '/^([A-z]+[A-z0-9]*)/';
+        $items       = [];
+        while (preg_match($name, $source = trim($source), $matches) && isset($matches[1])) {
+            $source  = preg_replace($name, '', $source, 1);
+            $items[] = $found(...array_slice($matches, 1));
         }
-        $i++;
-        index($i);
+        return $items?$items:null;
     }
-
-    return new Fallback();
-}
-
-class State {
-    /** @var false|Writable */
-    private static $state = false;
-
-    /** @return Writable  */
-    public static function use() {
-        if (!static::$state) {
-            static::$state = writable([]);
+    
+    function structDeclaration(string &$source, callable $found) {
+        static $structDeclaration = '/^struct\s+([\w\W]*)\s*{([\w\W]*)}/U';
+        $items                    = [];
+        while (preg_match($structDeclaration, $source = trim($source), $matches) && isset($matches[2])) {
+            $source  = preg_replace($structDeclaration, '', $source, 1);
+            $items[] = $found(...array_slice($matches, 1));
         }
-        return static::$state;
+        return $items?$items:null;
+    }
+
+    function callableDeclaration(string &$source, callable $found) {
+        static $invokableDeclaration = '/^(const|let)\s+([\w\W]*)\s*=\s*::{([\w\W]*)}/U';
+        $items                       = [];
+        while (preg_match($invokableDeclaration, $source = trim($source), $matches) && isset($matches[3])) {
+            $source  = preg_replace($invokableDeclaration, '', $source, 1);
+            $items[] = $found(...array_slice($matches, 1));
+        }
+        return $items?$items:null;
+    }
+
+    function callableCall(string &$source, callable $found) {
+        static $callableCall = '/^([A-z0-9][A-z0-9_]*)\(([\w\W]*)\)/';
+        $items               = [];
+        while (preg_match($callableCall, $source = trim($source), $matches) && isset($matches[2])) {
+            $source  = preg_replace($callableCall, '', $source, 1);
+            $items[] = $found(...array_slice($matches, 1));
+        }
+        return $items?$items:null;
+    }
+
+    function callableArguments(string &$source, callable $found) {
+        static $callableArguments = '/^([A-z][A-z0-9_]+):([\w\W]+)(,|$)/U';
+        $items                    = [];
+        while (preg_match($callableArguments, $source = trim($source), $matches) && isset($matches[2])) {
+            $source  = preg_replace($callableArguments, '', $source, 1);
+            $items[] = $found(...array_slice($matches, 1));
+        }
+        return $items?$items:null;
     }
 }
 
-/** @return Writable  */
-function state() {
-    return State::use();
-}
 
-/**
- * @param  string $key
- * @param  string $value
- * @throws Error
- * @return true
- */
-function set($key, $value) {
-    $data = state();
-    $data->set([
-        ...$data->get(),
-        "$key" => $value,
-    ]);
-    return true;
-}
+namespace OLang {
+    function target(string $name = '') {
+        static $language = '';
+        if (!$language) {
+            $language = $name;
+        }
 
-/**
- * @param  string $key
- * @return string
- */
-function get($key) {
-    $data = state();
-    return $data->get()[$key] ?? '';
-}
+        return $language;
+    }
 
-
-class Node {
-    /**
-     * @param  null|callable():string $toWASM
-     * @param  null|callable():string $toPHP
-     * @param  null|Node              $next
-     * @return void
-     */
-    public function __construct(
-        public $toWASM = null,
-        public $toPHP = null,
-        public $next = null,
+    function transpile(
+        string $source,
     ) {
+        $instructions = [];
+        while ($source) {
+            if ($invokableDeclaration = match (target()) {
+                'php' => Internal\callableDeclaration($source, fn ($mutability, $name, $block) => [
+                    'mutability' => match ($mutability) {
+                        'const' => 'constant',
+                        'let'   => 'variable',
+                        default => 'constant',
+                    },
+                    'name'  => Internal\name($name, fn ($name) => $name)[0] ?? false,
+                    'block' => transpile($block),
+                ]),
+                default => false,
+            }) {
+                $instructions[] = [
+                    'meta' => 'invokableDeclaration',
+                    'data' => $invokableDeclaration[0] ?? false,
+                ];
+            }
+
+            if ($structDeclaration = Internal\structDeclaration($source, fn ($name, $block) => [
+                'name'  => Internal\name($name, fn ($name) => $name)[0] ?? false,
+                'block' => transpile($block),
+            ])) {
+                $instructions[] = [
+                    'meta' => 'structDeclaration',
+                    'data' => $structDeclaration[0] ?? false,
+                ];
+            }
+
+            if ($parameters = Internal\parameters($source, fn ($availability, $type, $name) => [
+                "availability" => $availability,
+                "type"         => $type,
+                "name"         => $name,
+            ])) {
+                $instructions[] = [
+                    'meta' => 'parameters',
+                    'data' => $parameters,
+                ];
+            }
+
+            if ($callableCall = Internal\callableCall($source, fn ($name, $arguments) => [
+                "name"      => $name,
+                "arguments" => Internal\callableArguments($arguments, fn ($key, $value) => [
+                    "key"   => $key,
+                    "value" => $value,
+                ]),
+            ])) {
+                $instructions[] = [
+                    'meta' => 'callableCall',
+                    'data' => $callableCall[0] ?? false,
+                ];
+            }
+        }
+
+        return $instructions;
     }
-}
-
-
-/**
- * @param bool $reset
- * @return @return array<Node>
- */
-function &ast($reset = false) {
-    static $ast = [];
-
-    if ($reset) {
-        $ast = [];
-    }
-
-    return $ast;
 }
