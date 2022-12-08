@@ -69,59 +69,29 @@ namespace Olang\Internal {
 
 
 namespace OLang {
-    function target(string $name = '') {
-        static $language = '';
-        if (!$language) {
-            $language = $name;
-        }
-
-        return $language;
-    }
-
-    function transpile(
+    function parse(
         string $source,
     ) {
         $instructions = [];
         while ($source) {
-            if ($invokableDeclaration = match (target()) {
-                'php' => Internal\callableDeclaration($source, fn ($mutability, $name, $block) => [
-                    'mutability' => match ($mutability) {
-                        'const' => 'constant',
-                        'let'   => 'variable',
-                        default => 'constant',
-                    },
-                    'name'  => Internal\name($name, fn ($name) => $name)[0] ?? false,
-                    'block' => transpile($block),
-                ]),
-                default => false,
-            }) {
-                $instructions[] = [
-                    'meta' => 'invokableDeclaration',
-                    'data' => $invokableDeclaration[0] ?? false,
-                ];
-            }
-
-            if ($structDeclaration = Internal\structDeclaration($source, fn ($name, $block) => [
+            // ######### callable
+            if ($callableDeclaration = Internal\callableDeclaration($source, fn ($mutability, $name, $block) => [
+                'mutability' => match ($mutability) {
+                    'const' => 'constant',
+                    'let'   => 'variable',
+                    default => 'constant',
+                },
                 'name'  => Internal\name($name, fn ($name) => $name)[0] ?? false,
-                'block' => transpile($block),
+                'block' => parse($block)[0]                             ?? false,
             ])) {
                 $instructions[] = [
-                    'meta' => 'structDeclaration',
-                    'data' => $structDeclaration[0] ?? false,
+                    'meta' => 'callableDeclaration',
+                    'data' => $callableDeclaration[0] ?? false,
                 ];
+                continue;
             }
 
-            if ($parameters = Internal\parameters($source, fn ($availability, $type, $name) => [
-                "availability" => $availability,
-                "type"         => $type,
-                "name"         => $name,
-            ])) {
-                $instructions[] = [
-                    'meta' => 'parameters',
-                    'data' => $parameters,
-                ];
-            }
-
+            // ######### call
             if ($callableCall = Internal\callableCall($source, fn ($name, $arguments) => [
                 "name"      => $name,
                 "arguments" => Internal\callableArguments($arguments, fn ($key, $value) => [
@@ -133,6 +103,32 @@ namespace OLang {
                     'meta' => 'callableCall',
                     'data' => $callableCall[0] ?? false,
                 ];
+                continue;
+            }
+
+            // ######### struct
+            if ($structDeclaration = Internal\structDeclaration($source, fn ($name, $block) => [
+                'name'  => Internal\name($name, fn ($name) => $name)[0] ?? false,
+                'block' => parse($block)[0]                             ?? false,
+            ])) {
+                $instructions[] = [
+                    'meta' => 'structDeclaration',
+                    'data' => $structDeclaration[0] ?? false,
+                ];
+                continue;
+            }
+
+            // ######### parameters
+            if ($parameters = Internal\parameters($source, fn ($availability, $type, $name) => [
+                "availability" => $availability,
+                "type"         => $type,
+                "name"         => $name,
+            ])) {
+                $instructions[] = [
+                    'meta' => 'parameters',
+                    'data' => $parameters,
+                ];
+                continue;
             }
         }
 
