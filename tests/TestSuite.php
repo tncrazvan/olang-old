@@ -1,29 +1,35 @@
 <?php
 
-use function OLang\parse;
+use function OLang\parse as ast;
 
 use PHPUnit\Framework\TestCase;
 
 class TestSuite extends TestCase {
-    public function testCompiler() {
-        $ast = parse(<<<OLANG
+    public function testAst() {
+        $ast = ast(<<<OLANG
             struct user {
-                required<string> username
-                required<string> email
-                optional<string> phone
+                username: string
+                email: string
+                phone: string
 
+                ::is_active => bool {
+                    // check if user is active
+                }
             }
 
-            const createUser = ::{
-                required<string> username
-                required<string> email
-                optional<string> phone
+            const validate => bool {
+                email: string
+                phone: string
+
+                // validation logic
             }
 
-            createUser(username: "loopcake", email: "tangent.jotey@gmail.com", phone: "3343517612")
+            validate(
+                email: "asd.asd@asd.com",
+                phone: "123123123"
+            )
 
             OLANG);
-
         echo $ast;
     }
 }
