@@ -4,11 +4,11 @@ namespace Olang\Internal {
     function consume(string $pattern, int $groups, string &$source):null|string|array {
         if (preg_match($pattern, $source = trim($source), $matches) && isset($matches[$groups])) {
             $source = trim(preg_replace($pattern, '', $source, 1));
-            if ($c = count($matches) === 2) {
+            if (2 === ($c = count($matches))) {
                 return $matches[1] ?? '';
             }
             if (1 === $c) {
-                return [];
+                return null;
             }
             return array_slice($matches, 1);
         }
@@ -16,8 +16,11 @@ namespace Olang\Internal {
     }
 
     function expression(string &$source, callable $found) {
-        $items = [];
+        $copy      = "$source";
+        $localCopy = "$source";
+        $items     = [];
 
+        $previousIsUsable = false;
         while (
             (null !== ($value = stringId($source, fn ($value) => $value)))
             || (null !== ($value = integerValue($source, fn ($value) => $value)))
@@ -25,34 +28,80 @@ namespace Olang\Internal {
             || (null !== ($value = addition($source, fn () => 'addition')))
             || (null !== ($value = subtraction($source, fn () => 'subtraction')))
             || (null !== ($value = booleanValue($source, fn ($value) => $value)))
+            || (null !== ($value = andOperation($source, fn () => 'andOperation')))
+            || (null !== ($value = orOperation($source, fn () => 'orOperation')))
             || (null !== ($value = valueEqualityCheck($source, fn () => 'valueEqualityCheck')))
             || (null !== ($value = pointerEqualityCheck($source, fn () => 'pointerEqualityCheck')))
+            || (null !== ($value = valueNotEqualityCheck($source, fn () => 'valueNotEqualityCheck')))
+            || (null !== ($value = pointerNotEqualityCheck($source, fn () => 'pointerNotEqualityCheck')))
+            
+            || (null !== ($value = usableName($source, fn ($prefix, $name) => [
+                "meta" => "usableName",
+                "data" => [
+                    "prefix" => $prefix,
+                    "name"   => $name,
+                ]
+            ])))
 
         ) {
+            $currentIsUsable = 'usableName' === ($value['meta'] ?? '') || (is_string($value) && str_starts_with($value, "string#"));
+
+            if ($previousIsUsable && $currentIsUsable) {
+                $source = "$localCopy";
+                break;
+            }
+
             $items[] = $found($value);
+
+            $previousIsUsable = 'usableName' === ($value['meta'] ?? '') || (is_string($value) && str_starts_with($value, "string#"));
+
+            $localCopy = "$source";
         }        
 
+        if (!$items) {
+            $source = $copy;
+        }
         return $items;
     }
 
-    function parameter(string &$source, callable $found) {
+    function parameterDeclaration(string &$source, callable $found) {
+        $copy = "$source";
         if (!$name = consume('/^\s*([A-z]+[A-z0-9]*)/', 1, $source)) {
             return null;
         }
 
         if (!$type = consume('/^\s*:\s*([\w\W]*)=/U', 1, $source)) {
+            $source = $copy;
             return null;
         }
 
         if ($default = expression($source, fn ($default) => $default)) {
+            consume('/^\s*(,)/', 1, $source);
             return $found($name, $type, $default);
         }
-        
+
+        $source = $copy;
         return null;
     }
     
+    function andOperation(string &$source, callable $found) {
+        if (!consume('/^\s*(and)/', 1, $source)) {
+            return null;
+        }
+
+        return $found(true);
+    }
+
+    function orOperation(string &$source, callable $found) {
+        if (!consume('/^\s*(or)/', 1, $source)) {
+            return null;
+        }
+
+        return $found(true);
+    }
+
     function addition(string &$source, callable $found) {
-        if (null === consume('/^\s*\+/', 0, $source)) {
+        if (!consume('/^\s*(\+)/', 1, $source)) {
             return null;
         }
 
@@ -60,7 +109,23 @@ namespace Olang\Internal {
     }
 
     function subtraction(string &$source, callable $found) {
-        if (!consume('/^\s*\-/', 0, $source)) {
+        if (!consume('/^\s*(-)/', 1, $source)) {
+            return null;
+        }
+
+        return $found(true);
+    }
+
+    function valueNotEqualityCheck(string &$source, callable $found) {
+        if (!consume('/^\s*(!=)/', 1, $source)) {
+            return null;
+        }
+
+        return $found(true);
+    }
+
+    function pointerNotEqualityCheck(string &$source, callable $found) {
+        if (!consume('/^\s*(!==)/', 1, $source)) {
             return null;
         }
 
@@ -68,7 +133,7 @@ namespace Olang\Internal {
     }
 
     function valueEqualityCheck(string &$source, callable $found) {
-        if (!consume('/^\s*==/', 0, $source)) {
+        if (!consume('/^\s*(==)/', 1, $source)) {
             return null;
         }
 
@@ -76,15 +141,29 @@ namespace Olang\Internal {
     }
 
     function pointerEqualityCheck(string &$source, callable $found) {
-        if (!consume('/^\s*===/', 0, $source)) {
+        if (!consume('/^\s*(===)/', 1, $source)) {
             return null;
         }
 
         return $found(true);
     }
 
+    function usableName(string &$source, callable $found) {
+        $copy = "$source";
+        if (!$usableName = consume('/^\s*(:{2})?([A-z]+[A-z0-9]*)(:)?/', 2, $source)) {
+            return null;
+        }
+
+        if (isset($usableName[2])) {
+            $source = $copy;
+            return null;
+        }
+
+        return $found(...$usableName);
+    }
+
     function name(string &$source, callable $found) {
-        if (!$name = consume('/^\s*(:{2})?([A-z]+[A-z0-9]*)/', 1, $source)) {
+        if (!$name = consume('/^\s*(:{2})?([A-z]+[A-z0-9]*)/', 2, $source)) {
             return null;
         }
 
@@ -92,10 +171,14 @@ namespace Olang\Internal {
     }
 
     function block(string &$source) {
+        $copy    = "$source";
         $l       = strlen($source);
         $opened  = 0;
         $closed  = 0;
         $content = '';
+        if (preg_match('/^[^\s{]+/', $source)) {
+            return null;
+        }
         for ($i = 0; $i < $l; $i++) {
             $character = $source[$i];
             if ('{' === $character) {
@@ -116,44 +199,59 @@ namespace Olang\Internal {
                 return $content;
             }
         }
-        $source = substr($source, 0, $i + 1);
-        return false;
+        $source = $copy;
+        return null;
     }
     
     function structDeclaration(string &$source, callable $found) {
+        $copy = "$source";
         if (!$name = consume('/^\s*struct\s+([A-z][A-z0-9]*)/', 1, $source)) {
             return null;
         }
 
         if (!$block = block($source)) {
+            $source = $copy;
             return null;
         }
 
         return $found($name, $block);
     }
 
-    function structCallableDeclaration(string &$source, callable $found) {
-        if (!$name = consume('/^\s*::([A-z0-9]+)\s*=>\s*([A-z][A-z0-9]*)\s*/', 2, $source)) {
-            return null;
-        }
-
-        if (!$block = block($source)) {
-            return null;
-        }
-
-        return $found(...[...$name, $block]);
-    }
-
     function callableDeclaration(string &$source, callable $found) {
-        if (!$declaration = consume('/^\s*(const|let)\s+([\w\W]*)\s*=>\s*([A-z][A-z0-9]*)\s*/', 3, $source)) {
+        $copy = "$source";
+        if (!$name = consume('/^\s*([A-z0-9]+):\s*([A-z][A-z0-9]*)\s*=>/', 2, $source)) {
             return null;
         }
 
-        if (!$block = block($source)) {
-            return null;
+        $parameters = [];
+        while ($parameter = parameterDeclaration($source, fn ($name, $type, $default) => [
+            [
+                "meta" => "parameter",
+                "data" => [
+                    "name"    => $name,
+                    "type"    => $type,
+                    "default" => $default,
+                ],
+            ]
+        ])) {
+            $parameters[] = $parameter;
+            if (consume('/^\s*(\|)/', 1, $source)) {
+                break;
+            }
         }
 
-        return $found(...[...$declaration, $block]);
+        if ($block = block($source)) {
+            return $found(...[...$name, $block, null]);
+        }
+
+        if ($expression = expression($source, fn ($value) => $value)) {
+            return $found(...[...$name, null, $expression]);
+        }
+
+        
+
+        $source = $copy;
+        return null;
     }
 
     function callableCall(string &$source, callable $found) {
@@ -227,129 +325,126 @@ namespace OLang {
         $instructions = [];
         while ($source) {
             $copy = "$source";
-            // ######### struct callable
-            if ($structCallableDeclaration = Internal\structCallableDeclaration($source, fn ($name, $return, $block) => [
-                "name"   => trim($name),
-                "return" => trim($return),
-                "block"  => parse($block),
+            // ######### struct callable declaration
+            if ($callableDeclaration = Internal\callableDeclaration($source, fn (
+                $name,
+                $return,
+                $block,
+                $expression
+            ) => [
+                "meta" => "callableDeclaration",
+                "data" => [
+                    "name"       => trim($name),
+                    "return"     => trim($return),
+                    "block"      => parse($block ?? ''),
+                    "expression" => $expression,
+                ]
             ])) {
-                $instructions[] = [
-                    "meta" => "structCallableDeclaration",
-                    "data" => $structCallableDeclaration,
-                ];
+                $instructions[] = $callableDeclaration;
                 continue;
             }
 
-
-            // ######### callable
-            if ($callableDeclaration = Internal\callableDeclaration($source, fn ($mutability, $name, $return, $block) => [
-                'mutability' => match ($mutability) {
-                    'const' => 'constant',
-                    'let'   => 'variable',
-                    default => 'constant',
-                },
-                'name'   => Internal\name($name, fn ($prefix, $name) => $name),
-                'return' => trim($return),
-                'block'  => parse($block),
-
-            ])) {
-                $instructions[] = [
-                    'meta' => 'callableDeclaration',
-                    'data' => $callableDeclaration,
-                ];
-                continue;
-            }
-
-            // ######### call
+            // ######### callable call
             if ($callableCall = Internal\callableCall($source, fn ($name, $arguments) => [
-                "name"      => $name,
-                "arguments" => Internal\callableArguments($arguments, fn ($key, $value) => [
-                    "key"   => trim($key),
-                    "value" => $value,
-                ]),
+                "meta" => "callableCall",
+                "data" => [
+                    "name"      => $name,
+                    "arguments" => Internal\callableArguments($arguments, fn ($key, $value) => [
+                        "key"   => trim($key),
+                        "value" => $value,
+                    ]),
+                ]
             ])) {
-                $instructions[] = [
-                    'meta' => 'callableCall',
-                    'data' => $callableCall,
-                ];
+                $instructions[] = $callableCall;
                 continue;
             }
 
-            // ######### struct
+            // ######### struct declaration
             if ($structDeclaration = Internal\structDeclaration($source, fn ($name, $block) => [
-                'name'  => Internal\name($name, fn ($prefix, $name) => $name),
-                'block' => parse($block),
+                'meta' => 'structDeclaration',
+                'data' => [
+                    'name' => Internal\name($name, fn ($prefix, $name) => [
+                        "meta" => "name",
+                        "data" => [
+                            "prefix" => $prefix,
+                            "name"   => $name,
+                        ],
+                    ]),
+                    'block' => parse($block),
+                ],
             ])) {
-                $instructions[] = [
-                    'meta' => 'structDeclaration',
-                    'data' => $structDeclaration,
-                ];
+                $instructions[] = $structDeclaration;
                 continue;
             }
 
-            // ######### parameter
-            if ($parameter = Internal\parameter($source, fn ($name, $type, $default) => [
-                "availability" => "required",
-                "type"         => trim($type),
-                "name"         => trim($name),
-                "default"      => $default,
+            // ######### parameter declaration
+            if ($parameter = Internal\parameterDeclaration($source, fn ($name, $type, $default) => [
+                "meta" => "parameter",
+                "data" => [
+                    "availability" => "required",
+                    "type"         => trim($type),
+                    "name"         => trim($name),
+                    "default"      => $default,
+                ]
             ])) {
-                $instructions[] = [
-                    'meta' => 'parameter',
-                    'data' => $parameter,
-                ];
+                $instructions[] = $parameter;
                 continue;
             }
 
-            // ######### valueEqualityCheck
-            if ($comment = Internal\valueEqualityCheck($source, fn () => true)) {
-                $instructions[] = [
-                    "meta" => "operation",
-                    "data" => "valueEqualityCheck"
-                ];
+            // ######### value equality check
+            if ($valueEqualityCheck = Internal\valueEqualityCheck($source, fn () => [
+                "meta" => "operation",
+                "data" => "valueEqualityCheck"
+            ])) {
+                $instructions[] = $valueEqualityCheck;
                 continue;
             }
 
-            // ######### pointerEqualityCheck
-            if ($comment = Internal\pointerEqualityCheck($source, fn () => true)) {
-                $instructions[] = [
-                    "meta" => "operation",
-                    "data" => "pointerEqualityCheck"
-                ];
+            // ######### pointer equality check
+            if ($pointerEqualityCheck = Internal\pointerEqualityCheck($source, fn () => [
+                "meta" => "operation",
+                "data" => "pointerEqualityCheck"
+            ])) {
+                $instructions[] = $pointerEqualityCheck;
                 continue;
             }
 
-            // ######### stringId
+            // ######### string id
             if ($stringId = Internal\stringId($source, fn ($id) => [
-                "id" => $id
+                "meta" => "stringId",
+                "data" => trim($id),
             ])) {
-                $instructions[] = [
-                    "meta" => "stringId",
-                    "data" => trim($stringId),
-                ];
+                $instructions[] = $stringId;
+                continue;
+            }
+
+            // expression 
+            if ($expression = Internal\expression($source, fn ($expression) => [
+                "meta" => "expression",
+                "data" => $expression,
+            ])) {
+                $instructions[] = $expression;
                 continue;
             }
 
             // ######### name
             if ($name = Internal\name($source, fn ($prefix, $name) => [
-                "prefix" => trim($prefix),
-                "name"   => trim($name),
+                "meta" => "name",
+                "data" => [
+                    "prefix" => trim($prefix),
+                    "name"   => trim($name),
+                ]
             ])) {
-                $instructions[] = [
-                    "meta" => "name",
-                    "data" => trim($name),
-                ];
+                $instructions[] = $name;
                 continue;
             }
 
             // ######### one line comment
             if ($comment = Internal\oneLineComment($source, fn ($comment) => [
-                "content" => $comment,
+                'meta' => 'oneLineComment',
+                'data' => $comment,
             ])) {
-                $instructions[] = [
-                    'meta' => 'oneLineComment',
-                    'data' => $comment,
-                ];
+                $instructions[] = $comment;
                 continue;
             }
 

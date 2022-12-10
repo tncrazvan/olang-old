@@ -12,22 +12,15 @@ class TestSuite extends TestCase {
                     username: string = string#0
                     email: string    = string#1
                     phone: string    = string#2
-                    narts: uint32    = 0
 
+                    is_active: bool => 0
 
-                    ::is_active => bool {
-                        treshold: int = 0
-                    }
-
-                    ::is_admin => bool {
+                    is_admin: bool => {
                         // logic goes here
                     }
-
-
-
                 }
 
-                const validate => bool {
+                validate: bool => {
                     email: string = string#3
                     phone: string = string#4
 
@@ -35,12 +28,9 @@ class TestSuite extends TestCase {
                     
                 }
 
+                validate: bool => email:string = string#5, phone:string = string#6 | email != string#7 and phone != string#8
+
                 validate(email: string#5, phone: string#6)
-
-                // if user::is_active {
-                    // logic goes here
-                // }
-
                 OLANG);
             echo $ast;
         } catch(Error $e) {
