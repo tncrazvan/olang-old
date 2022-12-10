@@ -6,30 +6,45 @@ use PHPUnit\Framework\TestCase;
 
 class TestSuite extends TestCase {
     public function testAst() {
-        $ast = ast(<<<OLANG
-            struct user {
-                username: string
-                email: string
-                phone: string
+        try {
+            $ast = ast(<<<OLANG
+                struct user {
+                    username: string = string#0
+                    email: string    = string#1
+                    phone: string    = string#2
+                    narts: uint32    = 0
 
-                ::is_active => bool {
-                    // check if user is active
+
+                    ::is_active => bool {
+                        treshold: int = 0
+                    }
+
+                    ::is_admin => bool {
+                        // logic goes here
+                    }
+
+
+
                 }
-            }
 
-            const validate => bool {
-                email: string
-                phone: string
+                const validate => bool {
+                    email: string = string#3
+                    phone: string = string#4
 
-                // validation logic
-            }
+                    // validation logic
+                    
+                }
 
-            validate(
-                email: "asd.asd@asd.com",
-                phone: "123123123"
-            )
+                validate(email: string#5, phone: string#6)
 
-            OLANG);
-        echo $ast;
+                // if user::is_active {
+                    // logic goes here
+                // }
+
+                OLANG);
+            echo $ast;
+        } catch(Error $e) {
+            echo (string)$e;
+        }
     }
 }
