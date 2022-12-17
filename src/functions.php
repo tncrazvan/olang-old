@@ -1,7 +1,120 @@
 <?php
 
 namespace Olang\Internal {
-    function consume(string $pattern, int $groups, string &$source):null|string|array {
+    class Expression {
+        /**
+         * @param array<> $items 
+         */
+        public function __construct(
+            public array $items,
+        ) {
+        }
+    }
+    
+    class CallableDeclaration {
+        public function __construct(
+            public Name $name,
+            public string $returnType,
+            public null|string $block,
+            public null|Expression $expression,
+        ) {
+        }
+    }
+
+    class CallableArgument {
+        public function __construct(
+            public string $key,
+            public string $value,
+        ) {
+        }
+    }
+
+    class CallableCall {
+        /**
+         * @param  Name                    $name
+         * @param  array<CallableArgument> $arguments
+         * @return void
+         */
+        public function __construct(
+            public Name $name,
+            public array $arguments,
+        ) {
+        }
+    }
+
+    class StructDeclaration {
+        public function __construct(
+            public Name $name,
+            public string $block,
+        ) {
+        }
+    }
+
+    class ParameterDeclaration {
+        public function __construct(
+            public bool $availability,
+            public string $type,
+            public string $name,
+            public string $default,
+        ) {
+        }
+    }
+
+    class StringID {
+        public function __construct(
+            public string $value,
+        ) {
+        }
+    }
+
+    class IntegerValue {
+        public function __construct(
+            public int $value,
+        ) {
+        }
+    }
+
+    class FloatValue {
+        public function __construct(
+            public float $value,
+        ) {
+        }
+    }
+    
+    class BooleanValue {
+        public function __construct(
+            public bool $value,
+        ) {
+        }
+    }
+
+    class UsableName {
+        public function __construct(
+            public Name $value,
+        ) {
+        }
+    }
+
+    class Name {
+        public function __construct(
+            public string $prefix,
+            public string $value,
+        ) {
+        }
+    }
+
+    class OneLineComment {
+        public function __construct(
+            public string $data,
+        ) {
+        }
+    }
+
+    function consume(
+        string $pattern,
+        int $groups,
+        string &$source
+    ):null|string|array {
         if (preg_match($pattern, $source = trim($source), $matches) && isset($matches[$groups])) {
             $source = trim(preg_replace($pattern, '', $source, 1));
             if (2 === ($c = count($matches))) {
@@ -15,7 +128,10 @@ namespace Olang\Internal {
         return null;
     }
 
-    function expression(string &$source, callable $found) {
+    function expression(
+        string &$source,
+        callable $found
+    ) {
         $copy      = "$source";
         $localCopy = "$source";
         $items     = [];
@@ -44,7 +160,8 @@ namespace Olang\Internal {
             ])))
 
         ) {
-            $currentIsUsable = 'usableName' === ($value['meta'] ?? '') || (is_string($value) && str_starts_with($value, "string#"));
+            $currentIsUsable = 'usableName' === ($value['meta'] ?? '') 
+            || (is_string($value) && str_starts_with($value, "string#"));
 
             if ($previousIsUsable && $currentIsUsable) {
                 $source = "$localCopy";
@@ -53,7 +170,8 @@ namespace Olang\Internal {
 
             $items[] = $found($value);
 
-            $previousIsUsable = 'usableName' === ($value['meta'] ?? '') || (is_string($value) && str_starts_with($value, "string#"));
+            $previousIsUsable = 'usableName' === ($value['meta'] ?? '') 
+            || (is_string($value) && str_starts_with($value, "string#"));
 
             $localCopy = "$source";
         }        
@@ -64,7 +182,10 @@ namespace Olang\Internal {
         return $items;
     }
 
-    function parameterDeclaration(string &$source, callable $found) {
+    function parameterDeclaration(
+        string &$source,
+        callable $found
+    ) {
         $copy = "$source";
         if (!$name = consume('/^\s*([A-z]+[A-z0-9]*)/', 1, $source)) {
             return null;
@@ -219,7 +340,7 @@ namespace Olang\Internal {
 
     function callableDeclaration(string &$source, callable $found) {
         $copy = "$source";
-        if (!$name = consume('/^\s*([A-z0-9]+):\s*([A-z][A-z0-9]*)\s*=>/', 2, $source)) {
+        if (!$name = consume('/^\s*([A-z0-9]+)\s*=>\s*([A-z][A-z0-9]*)\s*/', 2, $source)) {
             return null;
         }
 
@@ -325,7 +446,7 @@ namespace OLang {
         $instructions = [];
         while ($source) {
             $copy = "$source";
-            // ######### struct callable declaration
+            // ######### callable declaration
             if ($callableDeclaration = Internal\callableDeclaration($source, fn (
                 $name,
                 $return,
@@ -335,7 +456,7 @@ namespace OLang {
                 "meta" => "callableDeclaration",
                 "data" => [
                     "name"       => trim($name),
-                    "return"     => trim($return),
+                    "returnType" => trim($return),
                     "block"      => parse($block ?? ''),
                     "expression" => $expression,
                 ]

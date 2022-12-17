@@ -11,10 +11,10 @@
             "php -dxdebug.mode=off -dxdebug.start_with_request=no ./vendor/bin/php-cs-fixer fix tests"
         ],
         "action:test": [
-            "php -dxdebug.mode=off -dxdebug.start_with_request=no vendor/bin/phpunit tests/TestSuiteParser.php"
+            "php -dxdebug.mode=off -dxdebug.start_with_request=no vendor/bin/phpunit tests"
         ],
         "test": [
-            "php -dxdebug.mode=debug -dxdebug.start_with_request=yes vendor/bin/phpunit tests/TestSuiteParser.php"
+            "php -dxdebug.mode=debug -dxdebug.start_with_request=yes vendor/bin/phpunit tests"
         ]
     },
     "authors": [
