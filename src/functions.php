@@ -82,7 +82,7 @@ namespace Olang\Internal {
             return null;
         }
 
-        if (!$type = consume('/^\s*:\s*([\w\W]*)=/U', 1, $source)) {
+        if (!$type = consume('/^\s*#\s*([\w\W]*)=/U', 1, $source)) {
             $source = $copy;
             return null;
         }
@@ -183,35 +183,58 @@ namespace Olang\Internal {
     }
 
     function block(string &$source) {
-        $copy    = "$source";
-        $l       = strlen($source);
+        // $copy    = "$source";
+        $length  = strlen($source);
         $opened  = 0;
         $closed  = 0;
         $content = '';
-        if (preg_match('/^[^\s{]+/', $source)) {
-            return null;
-        }
-        for ($i = 0; $i < $l; $i++) {
+        $type    = '';
+        $name    = '';
+        $options = '';
+        
+        for ($i = 0; $i < $length; $i++) {
             $character = $source[$i];
-            if ('{' === $character) {
+            $content .= $character;
+
+            if ($name = consume('/^\s*struct\s+([A-z][A-z0-9]*)/', 1, $content)) {
                 $opened++;
-            }
-
-            if ('}' === $character) {
-                $closed++;
-            }
-            
-            if ($opened > 0) {
-                $content .= $character;
-            }
-
-            if (0 !== $opened && 0 !== $closed && $opened === $closed) {
-                $content = substr($content, 1, strlen($content) - 2);
-                $source  = substr($source, $i + 1);
-                return $content;
+                if (!$type) {
+                    $type = 'struct';
+                }
+            } else if ($name = consume('/^\s*([A-z0-9]+)\s*=>\s*([A-z][A-z0-9]*)\s*/', 2, $content)) {
+                $opened++;
+                if (!$type) {
+                    $type = 'callable';
+                }
+            } else if (consume('/\s*(end)\s*$/', 2, $content)) {
+                $closed--;
             }
         }
-        $source = $copy;
+
+        // if (preg_match('/^[^\s{]+/', $source)) {
+        //     return null;
+        // }
+        // for ($i = 0; $i < $l; $i++) {
+        //     $character = $source[$i];
+        //     if ('[' === $character) {
+        //         $opened++;
+        //     }
+
+        //     if (']' === $character) {
+        //         $closed++;
+        //     }
+            
+        //     if ($opened > 0) {
+        //         $content .= $character;
+        //     }
+
+        //     if (0 !== $opened && 0 !== $closed && $opened === $closed) {
+        //         $content = substr($content, 1, strlen($content) - 2);
+        //         $source  = substr($source, $i + 1);
+        //         return $content;
+        //     }
+        // }
+        // $source = $copy;
         return null;
     }
     
@@ -375,7 +398,7 @@ namespace OLang {
             if ($structDeclaration = Internal\structDeclaration($source, fn ($name, $block) => [
                 'meta' => 'structDeclaration',
                 'data' => [
-                    'name' => Internal\name($name, fn ($prefix, $name) => [
+                    'name'  => Internal\name($name, fn ($prefix, $name) => [
                         "meta" => "name",
                         "data" => [
                             "prefix" => $prefix,

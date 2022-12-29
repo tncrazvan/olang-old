@@ -25,6 +25,26 @@ class CompilerTest extends TestCase {
         }
 
         validate(email: string#5, phone: string#6)
+
+        -----------------------------------------------------
+
+
+        struct user
+            username#string = ""
+            email#string = ""
+            phone#string = ""
+
+            is_admin#bool
+                email#string = ""
+                phone#string = ""
+
+                // validation loic
+            end
+        end
+
+        validate#bool
+        
+        end
         OLANG;
 
     public function testAst() {
