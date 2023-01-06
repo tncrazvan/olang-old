@@ -5,6 +5,18 @@ use function OLang\parse as ast;
 use PHPUnit\Framework\TestCase;
 
 class CompilerTest extends TestCase {
+    private const SOURCE_WITH_ERRORS = <<<OLANG
+        struct user {
+            username: string = string#0
+            email: string    = string#1
+            phone: string    = string#2
+
+            is_admin => bool {
+                // logic goes here
+            }
+        }
+        OLANG;
+
     private const SOURCE = <<<OLANG
         struct user {
             username: string = string#0
@@ -27,7 +39,12 @@ class CompilerTest extends TestCase {
         validate(email: string#5, phone: string#6)
         OLANG;
 
-    public function testAst() {
+
+    public function testErrors() {
+        $ast = ast(self::SOURCE_WITH_ERRORS);
+    }
+
+    public function saaass() {
         $ast = ast(self::SOURCE);
 
         // declaration, struct user
@@ -90,9 +107,5 @@ class CompilerTest extends TestCase {
         $this->assertEquals('string#5', $ast[2]['data']['arguments'][0]['value'][0] ?? '');
         $this->assertEquals('phone', $ast[2]['data']['arguments'][1]['key'] ?? '');
         $this->assertEquals('string#6', $ast[2]['data']['arguments'][1]['value'][0] ?? '');
-    }
-    
-    public function testConvertToPHP() {
-        $ast = ast(self::SOURCE);
     }
 }
