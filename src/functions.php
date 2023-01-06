@@ -109,24 +109,24 @@ namespace Olang\Internal {
         callable $found
     ) {
         $copy = "$source";
-        if (!$parameter = consume('/^\s*([A-z][A-z0-9_]+)?\s*:\s*([A-z][A-z0-9_]+)?\s*(=)?/', null, $source)) {
+        if (!$parameter = consume('/^\s*([A-z][A-z0-9_]+)?\s*(:)?\s*([A-z][A-z0-9_]+)?\s*(=)?/', null, $source)) {
             return null;
         }
 
         if (!($parameter[0] ?? '')) {
             throw new Error("Invalid syntax, expecting a name when declaring a parameter.\n$copy");
         }
-        if (!($parameter[1] ?? '')) {
+        if (!($parameter[1] ?? '') || !($parameter[2] ?? '')) {
             throw new Error("Invalid syntax, expecting a type when declaring a parameter.\n$copy");
         }
-        if (!($parameter[2] ?? '')) {
+        if (!($parameter[3] ?? '')) {
             throw new Error("Parameter \"$parameter[0]\" must define a default value.\n$copy");
         }
 
-        $default = expression($source, fn ($default) => $default, true, "Invalid syntax, expecting a valid expression for parameter \"$parameter[0]\".\n$copy");
+        $default = expression($source, fn ($default) => $default, true, $copy);
 
         consume('/^\s*(,)/', 1, $source);
-        return $found($parameter[0], $parameter[1], $default);
+        return $found($parameter[0], $parameter[2], $default);
     }
     
     function andOperation(string &$source, callable $found) {
@@ -249,7 +249,7 @@ namespace Olang\Internal {
             }
         }
         $source = $copy;
-        return null;
+        throw new Error("Invalid syntax, could not detect end of structure declaration.\n$throwSnippet");
     }
     
     function structDeclaration(string &$source, callable $found) {
@@ -302,7 +302,7 @@ namespace Olang\Internal {
 
     function callableArguments(string &$source, callable $found) {
         $items = [];
-        while ($argument = consume('/^\s*([A-z][A-z0-9_]+):([A-z][A-z0-9_]+)(,|$)/U', 1, $source)) {
+        while ($argument = consume('/^\s*([A-z][A-z0-9_]+):\s*([A-z][A-z0-9_#]+)\s*(,|$)/U', 3, $source)) {
             if (null !== ($value = expression($argument[1], fn ($value) => $value))) {
                 $items[] = $found($argument[0], $value);
             }

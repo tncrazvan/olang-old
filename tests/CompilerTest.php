@@ -5,18 +5,6 @@ use function OLang\parse as ast;
 use PHPUnit\Framework\TestCase;
 
 class CompilerTest extends TestCase {
-    private const SOURCE_WITH_ERRORS = <<<OLANG
-        struct user {
-            username: string = string#0
-            email: string    = string#1
-            phone: string    = string#2
-
-            is_admin => bool {
-                // logic goes here
-            }
-        }
-        OLANG;
-
     private const SOURCE = <<<OLANG
         struct user {
             username: string = string#0
@@ -41,10 +29,80 @@ class CompilerTest extends TestCase {
 
 
     public function testErrors() {
-        $ast = ast(self::SOURCE_WITH_ERRORS);
+        $error0  = '';
+        $error1  = '';
+        $error2  = '';
+        $error3  = '';
+        $error4  = '';
+        $error5  = '';
+        $error6  = '';
+        $error7  = '';
+        $error8  = '';
+        $error9  = '';
+        $error10 = '';
+
+        try {
+            ast(<<<OLANG
+                struct user {
+                    username: string = 
+                }
+                OLANG);
+        } catch(Error $e) {
+            $error0 = (string)$e;
+        }
+
+        try {
+            ast(<<<OLANG
+                struct user {
+                    username: = string#0
+                }
+                OLANG);
+        } catch(Error $e) {
+            $error1 = (string)$e;
+        }
+
+        try {
+            ast(<<<OLANG
+                struct user 
+                    
+                }
+                OLANG);
+        } catch(Error $e) {
+            $error3 = (string)$e;
+        }
+        
+        try {
+            ast(<<<OLANG
+                struct user {
+                OLANG);
+        } catch(Error $e) {
+            $error4 = (string)$e;
+        }
+
+        try {
+            ast("test: = 1");
+            ast("test = 1");
+        } catch(Error $e) {
+            $error5 = (string)$e;
+        }
+
+        try {
+            ast("test:string = ");
+        } catch(Error $e) {
+            $error6 = (string)$e;
+        }
+
+        ast("name = 1");
+
+        $this->assertStringContainsString('Error: Invalid syntax, expecting a valid expression.', $error0);
+        $this->assertStringContainsString('Error: Invalid syntax, expecting a type when declaring a parameter.', $error1);
+        $this->assertStringContainsString('Error: Invalid syntax, expecting "{" after structure name declaration.', $error3);
+        $this->assertStringContainsString('Error: Invalid syntax, could not detect end of structure declaration.', $error4);
+        $this->assertStringContainsString('Error: Invalid syntax, expecting a type when declaring a parameter.', $error5);
+        $this->assertStringContainsString('Error: Invalid syntax, expecting a valid expression.', $error6);
     }
 
-    public function saaass() {
+    public function testAst() {
         $ast = ast(self::SOURCE);
 
         // declaration, struct user
