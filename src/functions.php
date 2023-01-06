@@ -56,17 +56,29 @@ namespace Olang\Internal {
         $previousIsUsable = false;
         while (
             (null !== ($value = stringId($source, fn ($value) => $value)))
+
+            || (null !== ($value = callableCall($source, fn ($name, $arguments) => [
+                "meta" => "callableCall",
+                "data" => [
+                    "name"      => $name,
+                    "arguments" => callableArguments($arguments, fn ($key, $value) => [
+                        "key"   => trim($key),
+                        "value" => $value,
+                    ]),
+                ]
+            ])))
+
             || (null !== ($value = integerValue($source, fn ($value) => $value)))
             || (null !== ($value = floatValue($source, fn ($value) => $value)))
-            || (null !== ($value = addition($source, fn () => 'addition')))
-            || (null !== ($value = subtraction($source, fn () => 'subtraction')))
+            || (null !== ($value = additionOperation($source, fn () => 'additionOperation')))
+            || (null !== ($value = subtractionOperation($source, fn () => 'subtractionOperation')))
             || (null !== ($value = booleanValue($source, fn ($value) => $value)))
             || (null !== ($value = andOperation($source, fn () => 'andOperation')))
             || (null !== ($value = orOperation($source, fn () => 'orOperation')))
-            || (null !== ($value = valueEqualityCheck($source, fn () => 'valueEqualityCheck')))
             || (null !== ($value = pointerEqualityCheck($source, fn () => 'pointerEqualityCheck')))
-            || (null !== ($value = valueNotEqualityCheck($source, fn () => 'valueNotEqualityCheck')))
             || (null !== ($value = pointerNotEqualityCheck($source, fn () => 'pointerNotEqualityCheck')))
+            || (null !== ($value = valueEqualityCheck($source, fn () => 'valueEqualityCheck')))
+            || (null !== ($value = valueNotEqualityCheck($source, fn () => 'valueNotEqualityCheck')))
             
             || (null !== ($value = usableName($source, fn ($prefix, $name) => [
                 "meta" => "usableName",
@@ -145,10 +157,29 @@ namespace Olang\Internal {
             throw new Error("Parameter \"$parameter[2]\" must define a default value.\n$copy");
         }
 
-        $default = expression($source, fn ($default) => $default, true, $copy);
+        $value = expression($source, fn ($default) => $default, true, $copy);
+        $count = count($value);
+
+        if (
+            is_string($op = $value[$count - 1]) 
+            && !str_starts_with($op, "string#")
+        ) {
+            $op = match ($op) {
+                "additionOperation"       => "+",
+                "subtractionOperation"    => "-",
+                "andOperation"            => "and",
+                "orOperation"             => "or",
+                "valueEqualityCheck"      => "==",
+                "pointerEqualityCheck"    => "===",
+                "valueNotEqualityCheck"   => "!=",
+                "pointerNotEqualityCheck" => "!==",
+                default                   => $op,
+            };
+            throw new Error("Invalid syntax, expression for parameter \"$parameter[2]\" must not end with an operation ($op).\n$copy");
+        }
 
         consume('/^\s*(,)/', 1, $source);
-        return $found($operation, $parameter[1], $parameter[2], $parameter[4], $default);
+        return $found($operation, $parameter[1], $parameter[2], $parameter[4], $value);
     }
     
     function andOperation(string &$source, callable $found) {
@@ -167,7 +198,7 @@ namespace Olang\Internal {
         return $found(true);
     }
 
-    function addition(string &$source, callable $found) {
+    function additionOperation(string &$source, callable $found) {
         if (!consume('/^\s*(\+)/', 1, $source)) {
             return null;
         }
@@ -175,7 +206,7 @@ namespace Olang\Internal {
         return $found(true);
     }
 
-    function subtraction(string &$source, callable $found) {
+    function subtractionOperation(string &$source, callable $found) {
         if (!consume('/^\s*(-)/', 1, $source)) {
             return null;
         }

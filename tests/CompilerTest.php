@@ -17,6 +17,17 @@ class CompilerTest extends TestCase {
         $error8  = '';
         $error9  = '';
         $error10 = '';
+        $error11 = '';
+        $error12 = '';
+        $error13 = '';
+        $error14 = '';
+        $error15 = '';
+        $error16 = '';
+        $error17 = '';
+        $error18 = '';
+        $error19 = '';
+        $error20 = '';
+        $error21 = '';
 
         try {
             ast(<<<OLANG
@@ -75,6 +86,70 @@ class CompilerTest extends TestCase {
             $error6 = (string)$e;
         }
 
+        try {
+            ast(<<<OLANG
+                name:bool = test() +
+                OLANG);
+        } catch(Error $e) {
+            $error7 = (string)$e;
+        }
+        
+        try {
+            ast(<<<OLANG
+                name:bool = test() -
+                OLANG);
+        } catch(Error $e) {
+            $error8 = (string)$e;
+        }
+        
+        try {
+            ast(<<<OLANG
+                name:bool = test() and
+                OLANG);
+        } catch(Error $e) {
+            $error9 = (string)$e;
+        }
+        
+        try {
+            ast(<<<OLANG
+                name:bool = test() or
+                OLANG);
+        } catch(Error $e) {
+            $error10 = (string)$e;
+        }
+        
+        try {
+            ast(<<<OLANG
+                name:bool = test() ==
+                OLANG);
+        } catch(Error $e) {
+            $error11 = (string)$e;
+        }
+        
+        try {
+            ast(<<<OLANG
+                name:bool = test() ===
+                OLANG);
+        } catch(Error $e) {
+            $error12 = (string)$e;
+        }
+        
+        try {
+            ast(<<<OLANG
+                name:bool = test() !=
+                OLANG);
+        } catch(Error $e) {
+            $error13 = (string)$e;
+        }
+        
+        try {
+            ast(<<<OLANG
+                name:bool = test() !==
+                OLANG);
+        } catch(Error $e) {
+            $error14 = (string)$e;
+        }
+
         $this->assertStringContainsString('Invalid syntax, expecting a valid expression.', $error0);
         $this->assertStringContainsString('Invalid syntax, expecting a type when declaring a parameter.', $error1);
         $this->assertStringContainsString('Invalid syntax, expecting "{" after structure name declaration.', $error2);
@@ -82,6 +157,14 @@ class CompilerTest extends TestCase {
         $this->assertStringContainsString('Invalid syntax, expecting a type when declaring a parameter.', $error4);
         $this->assertStringContainsString('Invalid syntax, expecting a valid expression.', $error5);
         $this->assertStringContainsString('Invalid syntax, expecting a valid expression.', $error6);
+        $this->assertStringContainsString('Invalid syntax, expression for parameter "name" must not end with an operation (+).', $error7);
+        $this->assertStringContainsString('Invalid syntax, expression for parameter "name" must not end with an operation (-).', $error8);
+        $this->assertStringContainsString('Invalid syntax, expression for parameter "name" must not end with an operation (and).', $error9);
+        $this->assertStringContainsString('Invalid syntax, expression for parameter "name" must not end with an operation (or).', $error10);
+        $this->assertStringContainsString('Invalid syntax, expression for parameter "name" must not end with an operation (==).', $error11);
+        $this->assertStringContainsString('Invalid syntax, expression for parameter "name" must not end with an operation (===).', $error12);
+        $this->assertStringContainsString('Invalid syntax, expression for parameter "name" must not end with an operation (!=).', $error13);
+        $this->assertStringContainsString('Invalid syntax, expression for parameter "name" must not end with an operation (!==).', $error14);
     }
 
     public function testAST() {
