@@ -6,8 +6,8 @@ namespace Olang\Internal {
         int $groups,
         string &$source
     ):null|string|array {
-        if (preg_match($pattern, $source = trim($source), $matches) && isset($matches[$groups])) {
-            $source = trim(preg_replace($pattern, '', $source, 1));
+        if (preg_match($pattern, $source = $source, $matches) && isset($matches[$groups])) {
+            $source = preg_replace($pattern, '', $source, 1);
             if (2 === ($c = count($matches))) {
                 return $matches[1] ?? '';
             }
@@ -82,7 +82,7 @@ namespace Olang\Internal {
             return null;
         }
 
-        if (!$type = consume('/^\s*#\s*([\w\W]*)=/U', 1, $source)) {
+        if (!$type = consume('/^\s*:\s*([\w\W]*)=/U', 1, $source)) {
             $source = $copy;
             return null;
         }
@@ -183,58 +183,35 @@ namespace Olang\Internal {
     }
 
     function block(string &$source) {
-        // $copy    = "$source";
-        $length  = strlen($source);
+        $copy    = "$source";
+        $l       = strlen($source);
         $opened  = 0;
         $closed  = 0;
         $content = '';
-        $type    = '';
-        $name    = '';
-        $options = '';
-        
-        for ($i = 0; $i < $length; $i++) {
+        if (preg_match('/^[^\s{]+/', $source)) {
+            return null;
+        }
+        for ($i = 0; $i < $l; $i++) {
             $character = $source[$i];
-            $content .= $character;
+            if ('{' === $character) {
+                $opened++;
+            }
 
-            if ($name = consume('/^\s*struct\s+([A-z][A-z0-9]*)/', 1, $content)) {
-                $opened++;
-                if (!$type) {
-                    $type = 'struct';
-                }
-            } else if ($name = consume('/^\s*([A-z0-9]+)\s*=>\s*([A-z][A-z0-9]*)\s*/', 2, $content)) {
-                $opened++;
-                if (!$type) {
-                    $type = 'callable';
-                }
-            } else if (consume('/\s*(end)\s*$/', 2, $content)) {
-                $closed--;
+            if ('}' === $character) {
+                $closed++;
+            }
+            
+            if ($opened > 0) {
+                $content .= $character;
+            }
+
+            if (0 !== $opened && 0 !== $closed && $opened === $closed) {
+                $content = substr($content, 1, strlen($content) - 2);
+                $source  = substr($source, $i + 1);
+                return $content;
             }
         }
-
-        // if (preg_match('/^[^\s{]+/', $source)) {
-        //     return null;
-        // }
-        // for ($i = 0; $i < $l; $i++) {
-        //     $character = $source[$i];
-        //     if ('[' === $character) {
-        //         $opened++;
-        //     }
-
-        //     if (']' === $character) {
-        //         $closed++;
-        //     }
-            
-        //     if ($opened > 0) {
-        //         $content .= $character;
-        //     }
-
-        //     if (0 !== $opened && 0 !== $closed && $opened === $closed) {
-        //         $content = substr($content, 1, strlen($content) - 2);
-        //         $source  = substr($source, $i + 1);
-        //         return $content;
-        //     }
-        // }
-        // $source = $copy;
+        $source = $copy;
         return null;
     }
     
@@ -358,7 +335,7 @@ namespace OLang {
     ) {
         $source       = $source;
         $instructions = [];
-        while ($source) {
+        while (trim($source)) {
             $copy = "$source";
             // ######### callable declaration
             if ($callableDeclaration = Internal\callableDeclaration($source, fn (
@@ -398,7 +375,7 @@ namespace OLang {
             if ($structDeclaration = Internal\structDeclaration($source, fn ($name, $block) => [
                 'meta' => 'structDeclaration',
                 'data' => [
-                    'name'  => Internal\name($name, fn ($prefix, $name) => [
+                    'name' => Internal\name($name, fn ($prefix, $name) => [
                         "meta" => "name",
                         "data" => [
                             "prefix" => $prefix,
@@ -483,7 +460,7 @@ namespace OLang {
                 continue;
             }
 
-            if ($copy === $source) {
+            if ($copy === $source && !$instructions) {
                 throw new Error("Invalid syntax.");
             }
         }
