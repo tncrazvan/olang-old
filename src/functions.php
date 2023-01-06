@@ -104,29 +104,51 @@ namespace Olang\Internal {
         return $items;
     }
 
-    function parameterDeclaration(
+    function parameter(
         string &$source,
         callable $found
     ) {
         $copy = "$source";
-        if (!$parameter = consume('/^\s*([A-z][A-z0-9_]+)?\s*(:)?\s*([A-z][A-z0-9_]+)?\s*(=)?/', null, $source)) {
+        if (!$parameter = consume('/^\s*((const|let|struct)?\s+)?([A-z][A-z0-9_]+)?\s*(:)?\s*([A-z][A-z0-9_]+)?\s*(=)?/', null, $source)) {
             return null;
         }
 
-        if (!($parameter[0] ?? '')) {
+        
+        if (!($parameter[2] ?? '')) {
             throw new Error("Invalid syntax, expecting a name when declaring a parameter.\n$copy");
         }
-        if (!($parameter[1] ?? '') || !($parameter[2] ?? '')) {
-            throw new Error("Invalid syntax, expecting a type when declaring a parameter.\n$copy");
+
+        if (!in_array(trim($parameter[1] ?? ''), [
+            "",
+            "const",
+            "let",
+            "static",
+        ])) {
+            throw new Error("Invalid syntax, prefix \"const\", \"let\" or \"static\" for parameter \"$parameter[2]\".\n$copy");
         }
-        if (!($parameter[3] ?? '')) {
-            throw new Error("Parameter \"$parameter[0]\" must define a default value.\n$copy");
+
+        // if (!($parameter[3] ?? '') || !($parameter[4] ?? '')) {
+        //     throw new Error("Invalid syntax, expecting a type when declaring a parameter.\n$copy");
+        // }
+        
+        $operation = 'assignment';
+
+        if ($parameter[3] ?? '') {
+            if (!($parameter[4] ?? '')) {
+                throw new Error("Invalid syntax, expecting a type when declaring a parameter.\n$copy");
+            } else {
+                $operation = 'initialization';
+            }
+        }
+        
+        if (!($parameter[5] ?? '')) {
+            throw new Error("Parameter \"$parameter[2]\" must define a default value.\n$copy");
         }
 
         $default = expression($source, fn ($default) => $default, true, $copy);
 
         consume('/^\s*(,)/', 1, $source);
-        return $found($parameter[0], $parameter[2], $default);
+        return $found($operation, $parameter[1], $parameter[2], $parameter[4], $default);
     }
     
     function andOperation(string &$source, callable $found) {
@@ -360,8 +382,13 @@ namespace OLang {
         string $source,
     ) {
         $instructions = [];
+        $previous     = "";
         while (trim($source)) {
-            $copy = "$source";
+            if ($previous === $source) {
+                throw new Error("Syntax error, unknown syntax.\n$previous");
+            }
+            $previous = $source;
+            $copy     = $source;
             // ######### callable declaration
             if ($callableDeclaration = Internal\callableDeclaration($source, fn (
                 $name,
@@ -415,10 +442,12 @@ namespace OLang {
             }
 
             // ######### parameter declaration
-            if ($parameter = Internal\parameterDeclaration($source, fn ($name, $type, $default) => [
+            if ($parameter = Internal\parameter($source, fn ($operation, $mutability, $name, $type, $default) => [
                 "meta" => "parameter",
                 "data" => [
                     "availability" => "required",
+                    "operation"    => $operation,
+                    "mutability"   => trim($mutability),
                     "type"         => trim($type),
                     "name"         => trim($name),
                     "default"      => $default,

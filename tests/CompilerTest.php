@@ -5,29 +5,6 @@ use function OLang\parse as ast;
 use PHPUnit\Framework\TestCase;
 
 class CompilerTest extends TestCase {
-    private const SOURCE = <<<OLANG
-        struct user {
-            username: string = string#0
-            email: string    = string#1
-            phone: string    = string#2
-
-            is_admin => bool {
-                // logic goes here
-            }
-        }
-
-        validate => bool {
-            email: string = string#3
-            phone: string = string#4
-
-            // validation logic
-            
-        }
-
-        validate(email: string#5, phone: string#6)
-        OLANG;
-
-
     public function testErrors() {
         $error0  = '';
         $error1  = '';
@@ -68,7 +45,7 @@ class CompilerTest extends TestCase {
                 }
                 OLANG);
         } catch(Error $e) {
-            $error3 = (string)$e;
+            $error2 = (string)$e;
         }
         
         try {
@@ -76,34 +53,59 @@ class CompilerTest extends TestCase {
                 struct user {
                 OLANG);
         } catch(Error $e) {
-            $error4 = (string)$e;
+            $error3 = (string)$e;
         }
 
         try {
             ast("test: = 1");
             ast("test = 1");
         } catch(Error $e) {
-            $error5 = (string)$e;
+            $error4 = (string)$e;
         }
 
         try {
             ast("test:string = ");
         } catch(Error $e) {
+            $error5 = (string)$e;
+        }
+
+        try {
+            ast("name = ");
+        } catch(Error $e) {
             $error6 = (string)$e;
         }
 
-        ast("name = 1");
-
-        $this->assertStringContainsString('Error: Invalid syntax, expecting a valid expression.', $error0);
-        $this->assertStringContainsString('Error: Invalid syntax, expecting a type when declaring a parameter.', $error1);
-        $this->assertStringContainsString('Error: Invalid syntax, expecting "{" after structure name declaration.', $error3);
-        $this->assertStringContainsString('Error: Invalid syntax, could not detect end of structure declaration.', $error4);
-        $this->assertStringContainsString('Error: Invalid syntax, expecting a type when declaring a parameter.', $error5);
-        $this->assertStringContainsString('Error: Invalid syntax, expecting a valid expression.', $error6);
+        $this->assertStringContainsString('Invalid syntax, expecting a valid expression.', $error0);
+        $this->assertStringContainsString('Invalid syntax, expecting a type when declaring a parameter.', $error1);
+        $this->assertStringContainsString('Invalid syntax, expecting "{" after structure name declaration.', $error2);
+        $this->assertStringContainsString('Invalid syntax, could not detect end of structure declaration.', $error3);
+        $this->assertStringContainsString('Invalid syntax, expecting a type when declaring a parameter.', $error4);
+        $this->assertStringContainsString('Invalid syntax, expecting a valid expression.', $error5);
+        $this->assertStringContainsString('Invalid syntax, expecting a valid expression.', $error6);
     }
 
-    public function testAst() {
-        $ast = ast(self::SOURCE);
+    public function testAST() {
+        $ast = ast(<<<OLANG
+            struct user {
+                username: string = string#0
+                email: string    = string#1
+                phone: string    = string#2
+
+                is_admin => bool {
+                    // logic goes here
+                }
+            }
+
+            validate => bool {
+                email: string = string#3
+                phone: string = string#4
+
+                // validation logic
+                
+            }
+
+            validate(email: string#5, phone: string#6)
+            OLANG);
 
         // declaration, struct user
         $this->assertEquals('structDeclaration', $ast[0]['meta'] ?? '');
