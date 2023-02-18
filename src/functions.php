@@ -3,12 +3,13 @@
 namespace Olang\Internal {
     use Error;
 
+
     /**
-     * @param int $x will be ignored if lesser than 0
-     * @param int $y will be ignored if lesser than 0
-     * @return int{0:int,1:int} the current position x and y.
+     * @param  int                $x will be ignored if lesser than 0
+     * @param  int                $y will be ignored if lesser than 0
+     * @return array{0:int,1:int} the current position x and y.
      */
-    function position(int $x = -1, int $y = -1) {
+    function position(int $x = -1, int $y = -1):array {
         static $stateX = 0;
         static $stateY = 0;
 
@@ -20,6 +21,7 @@ namespace Olang\Internal {
             $stateY = $y;
         }
 
+        /** @var array{0:int,1:int} */
         return [$stateX, $stateY];
     }
 
@@ -43,17 +45,38 @@ namespace Olang\Internal {
         return null;
     }
 
+    function operations() {
+        static $operations = [
+            'additionOperation',
+            'subtractionOperation',
+            'andOperation',
+            'orOperation',
+            'pointerEqualityCheck',
+            'pointerNotEqualityCheck',
+            'valueEqualityCheck',
+            'valueNotEqualityCheck',
+            'greaterThanCheck',
+            'lesserThanCheck',
+            'greaterThanOrEqualCheck',
+            'lesserThanOrEqualCheck',
+        ];
+        return $operations;
+    }
+
     function expression(
         string &$source,
         callable $found,
         bool $throw = false,
         string $throwSnippet = '',
     ) {
-        $copy      = "$source";
-        $localCopy = "$source";
-        $items     = [];
+        $operations = operations();
 
-        $previousIsUsable = false;
+        $copy                = "$source";
+        $previousCopy        = "$source";
+        $items               = [];
+        $numberOfItems       = 0;
+        $previousIsOperation = false;
+        $previousIsUsable    = false;
         while (
             (null !== ($value = stringId($source, fn ($value) => $value)))
 
@@ -79,31 +102,58 @@ namespace Olang\Internal {
             || (null !== ($value = pointerNotEqualityCheck($source, fn () => 'pointerNotEqualityCheck')))
             || (null !== ($value = valueEqualityCheck($source, fn () => 'valueEqualityCheck')))
             || (null !== ($value = valueNotEqualityCheck($source, fn () => 'valueNotEqualityCheck')))
-            
-            || (null !== ($value = usableName($source, fn ($prefix, $name) => [
-                "meta" => "usableName",
-                "data" => [
-                    "prefix" => $prefix,
-                    "name"   => $name,
-                ]
+            || (null !== ($value = greaterThanCheck($source, fn () => 'greaterThanCheck')))
+            || (null !== ($value = lesserThanCheck($source, fn () => 'lesserThanCheck')))
+            || (null !== ($value = greaterThanOrEqualCheck($source, fn () => 'greaterThanOrEqualCheck')))
+            || (null !== ($value = lesserThanOrEqualCheck($source, fn () => 'lesserThanOrEqualCheck')))
+            || (null !== ($value = returnExpression($source, fn ($value) => [
+                "meta" => "return",
+                "data" => $value,
             ])))
+            || (null !== ($value = ifExpression($source, fn ($check, $thenBlock, $thenExpression, $elseBlock, $elseExpression) => [
+                "meta" => "if",
+                "data" => [
+                    "check"          => $check,
+                    "thenBlock"      => \Olang\parse($thenBlock ?? ''),
+                    "thenExpression" => $thenExpression,
+                    "elseBlock"      => \Olang\parse($elseBlock ?? ''),
+                    "elseExpression" => $elseExpression,
+                ],
+            ])))
+            
+            || (null !== ($value = usableName($source, fn ($prefix, $name) => $name)))
 
         ) {
             $currentIsUsable = 'usableName' === ($value['meta'] ?? '') 
             || (is_string($value) && str_starts_with($value, "string#"));
 
             if ($previousIsUsable && $currentIsUsable) {
-                $source = "$localCopy";
+                $source = "$previousCopy";
                 break;
             }
 
-            $items[] = $found($value);
 
             $previousIsUsable = 'usableName' === ($value['meta'] ?? '') 
             || (is_string($value) && str_starts_with($value, "string#"));
 
-            $localCopy = "$source";
-        }        
+            $currentIsOperation = in_array($value, $operations);
+
+            $isFirst = 0 === $numberOfItems;
+
+            if ($isFirst && $currentIsOperation) {
+                throw new Error("Invalid syntax, an expression must not start with an operation.");
+            }
+
+            if (!$isFirst && !$previousIsOperation && !$currentIsOperation) {
+                $source = "$previousCopy";
+                break;
+            }
+
+            $previousIsOperation = $currentIsOperation;
+            $items[]             = $found($value);
+            $numberOfItems++;
+            $previousCopy = "$source";
+        }
 
         if (!$items) {
             $source = $copy;
@@ -113,7 +163,10 @@ namespace Olang\Internal {
             }
         }
 
-        return $items;
+        return !$items?null:[
+            "meta" => "expression",
+            "data" => $items,
+        ];
     }
 
     function parameter(
@@ -122,6 +175,19 @@ namespace Olang\Internal {
     ) {
         $copy = "$source";
         if (!$parameter = consume('/^\s*((const|let|struct)?\s+)?([A-z][A-z0-9_]+)?\s*(:)?\s*([A-z][A-z0-9_]+)?\s*(=)?/', null, $source)) {
+            return null;
+        }
+
+        if (in_array($parameter[2], [
+            "if",
+            "match",
+            "else",
+            "struct",
+            "const",
+            "let",
+            "return",
+        ])) {
+            $source = $copy;
             return null;
         }
 
@@ -157,14 +223,17 @@ namespace Olang\Internal {
             throw new Error("Parameter \"$parameter[2]\" must define a default value.\n$copy");
         }
 
-        $value = expression($source, fn ($default) => $default, true, $copy);
+        $value = expression($source, fn ($default) => $default, true, $copy)['data'];
         $count = count($value);
 
+        $operations = operations();
+
         if (
-            is_string($op = $value[$count - 1]) 
-            && !str_starts_with($op, "string#")
+            is_string($element = $value[$count - 1]) 
+            // && !str_starts_with($op, "string#")
+            && in_array($element, $operations)
         ) {
-            $op = match ($op) {
+            $op = match ($element) {
                 "additionOperation"       => "+",
                 "subtractionOperation"    => "-",
                 "andOperation"            => "and",
@@ -173,7 +242,7 @@ namespace Olang\Internal {
                 "pointerEqualityCheck"    => "===",
                 "valueNotEqualityCheck"   => "!=",
                 "pointerNotEqualityCheck" => "!==",
-                default                   => $op,
+                default                   => $element,
             };
             throw new Error("Invalid syntax, expression for parameter \"$parameter[2]\" must not end with an operation ($op).\n$copy");
         }
@@ -182,6 +251,38 @@ namespace Olang\Internal {
         return $found($operation, $parameter[1], $parameter[2], $parameter[4], $value);
     }
     
+    function greaterThanCheck(string &$source, callable $found) {
+        if (!consume('/^\s*(>)/', 1, $source)) {
+            return null;
+        }
+
+        return $found(true);
+    }
+
+    function lesserThanCheck(string &$source, callable $found) {
+        if (!consume('/^\s*(<)/', 1, $source)) {
+            return null;
+        }
+
+        return $found(true);
+    }
+    
+    function greaterThanOrEqualCheck(string &$source, callable $found) {
+        if (!consume('/^\s*(>=)/', 1, $source)) {
+            return null;
+        }
+
+        return $found(true);
+    }
+
+    function lesserThanOrEqualCheck(string &$source, callable $found) {
+        if (!consume('/^\s*(<=)/', 1, $source)) {
+            return null;
+        }
+
+        return $found(true);
+    }
+
     function andOperation(string &$source, callable $found) {
         if (!consume('/^\s*(and)/', 1, $source)) {
             return null;
@@ -261,11 +362,51 @@ namespace Olang\Internal {
     }
 
     function name(string &$source, callable $found) {
-        if (!$name = consume('/^\s*(:{2})?([A-z][A-z0-9_]+)/', 2, $source)) {
-            return null;
+        $copy = "$source";
+        if ($name = consume('/^\s*(:{2})?([A-z][A-z0-9_]+)/', 2, $source)) {
+            return $found(...$name);
         }
 
-        return $found(...$name);
+        $source = $copy;
+        return null;
+    }
+
+    function arguments(string &$source, bool $throw = false, string $throwSnippet = '') {
+        $copy    = "$source";
+        $l       = strlen($source);
+        $opened  = 0;
+        $closed  = 0;
+        $content = '';
+        if (!preg_match('/^\s*\(+/', $source)) {
+            if ($throw) {
+                $throwSnippet = $throwSnippet?$throwSnippet:$copy;
+                throw new Error("Invalid syntax, expecting \"(\" before arguments declaration.\n$throwSnippet");
+            }
+            return null;
+        }
+        for ($i = 0; $i < $l; $i++) {
+            $character = $source[$i];
+            if ('(' === $character) {
+                $opened++;
+            }
+
+            if (')' === $character) {
+                $closed++;
+            }
+            
+            if ($opened > 0) {
+                $content .= $character;
+            }
+
+            if (0 !== $opened && 0 !== $closed && $opened === $closed) {
+                $content = substr($content, 1, strlen($content) - 2);
+                $source  = substr($source, $i + 1);
+                return $content;
+            }
+        }
+
+        $source = $copy;
+        throw new Error("Invalid syntax, could not detect end of arguments declaration.\n$throwSnippet");
     }
 
     function block(string &$source, bool $throw = false, string $throwSnippet = '') {
@@ -277,7 +418,7 @@ namespace Olang\Internal {
         if (!preg_match('/^\s*{+/', $source)) {
             if ($throw) {
                 $throwSnippet = $throwSnippet?$throwSnippet:$copy;
-                throw new Error("Invalid syntax, expecting \"{\" after structure name declaration.\n$throwSnippet");
+                throw new Error("Invalid syntax, expecting \"{\" before block declaration.\n$throwSnippet");
             }
             return null;
         }
@@ -301,8 +442,9 @@ namespace Olang\Internal {
                 return $content;
             }
         }
+
         $source = $copy;
-        throw new Error("Invalid syntax, could not detect end of structure declaration.\n$throwSnippet");
+        throw new Error("Invalid syntax, could not detect end of block declaration.\n$throwSnippet");
     }
     
     function structDeclaration(string &$source, callable $found) {
@@ -316,7 +458,7 @@ namespace Olang\Internal {
 
         $block = block(source: $source, throw: true, throwSnippet: $copy);
 
-        return $found($name, $block);
+        return $found($name, \Olang\parse($block ?? ''));
     }
 
     function callableDeclaration(string &$source, callable $found) {
@@ -333,7 +475,7 @@ namespace Olang\Internal {
         }
 
         if ($block = block($source)) {
-            return $found(...[...$callable, $block, null]);
+            return $found(...[...$callable, \Olang\parse($block ?? ''), null]);
         }
 
         if ($expression = expression($source, fn ($value) => $value)) {
@@ -346,11 +488,104 @@ namespace Olang\Internal {
     }
 
     function callableCall(string &$source, callable $found) {
-        if (!$call = consume('/^\s*([A-z0-9][A-z0-9_]+)\(([\w\W]*)\)/', 2, $source)) {
+        $copy = "$source";
+
+        if (!$name = name($source, fn ($prefix, $name) => $name )) {
+            $source = $copy;
             return null;
         }
 
-        return $found(...$call);
+        if ((!$arguments = arguments($source)) && '' !== $arguments) {
+            $source = $copy;
+            return null;
+        }
+        
+        return $found($name, $arguments);
+    }
+
+    function returnExpression(string &$source, callable $found) {
+        if (!consume('/^\s*(return)/', 1, $source)) {
+            return null;
+        }
+
+        if (!$expression = expression($source, fn ($value) => $value)) {
+            return null;
+        }
+
+        return $found($expression);
+    }
+
+    function ifExpression(string &$source, callable $found) {
+        $copy = "$source";
+
+        if (!$if = consume('/^\s*(if)\s*/', 1, $source)) {
+            return null;
+        }
+
+        if (!$check = expression($source, fn ($value) => $value)) {
+            throw new Error("Invalid syntax, if expressions require a check expression.\n$copy");
+        }
+
+        $thenBlock      = null;
+        $thenExpression = null;
+        $elseBlock      = null;
+        $elseExpression = null;
+
+        if (!$thenBlock = block($source)) {
+            if (!consume('/^\s*(=>)\s*/', 1, $source)) {
+                throw new Error("Invalid syntax, if expressions must be followed by a block or an expression.\n$copy");
+            } else {
+                $thenExpression = expression($source, fn ($value) => $value);
+            }
+        }
+
+        if ($else = consume('/^\s*(else)/', 1, $source)) {
+            if (!$elseBlock = block($source)) {
+                if (consume('/^\s*(=>)\s*/', 1, $source)) {
+                    $elseExpression = expression($source, fn ($value) => $value);
+                } else if ($if = consume('/^\s*(if)\s*/', 1, $source)) {
+                    $source         = "$if $source";
+                    $elseExpression = expression($source, fn ($value) => $value);
+                } else {
+                    throw new Error("Invalid syntax, else expressions must be followed by a block or an expression.\n$copy");
+                }
+            }
+        }
+
+        return $found($check, $thenBlock, $thenExpression, $elseBlock, $elseExpression);
+    }
+
+    function matchExpression(string &$source, callable $found) {
+        if (!$match = consume('/^\s*(match)\s*/', 1, $source)) {
+            return null;
+        }
+
+        if (!$expression = expression($source, fn ($value) => $value)) {
+            return null;
+        }
+
+        if (!$block = block($source)) {
+            return null;
+        }
+
+        $items = [];
+
+        while ($left = expression($block, fn ($value) => $value)) {
+            if (!$arrow = consume('/^\s*(=>)\s*/', 1, $block)) {
+                return null;
+            }
+            
+            if (!$right = expression($block, fn ($value) => $value)) {
+                return null;
+            }
+
+            $items[] = [
+                "left"  => $left,
+                "right" => $right
+            ];
+        }
+
+        return $found($expression, $items);
     }
 
     function callableArguments(string &$source, callable $found) {
@@ -431,7 +666,7 @@ namespace OLang {
                 "data" => [
                     "name"       => trim($name),
                     "returnType" => trim($return),
-                    "block"      => parse($block ?? ''),
+                    "block"      => $block,
                     "expression" => $expression,
                 ]
             ])) {
@@ -458,14 +693,8 @@ namespace OLang {
             if ($structDeclaration = Internal\structDeclaration($source, fn ($name, $block) => [
                 'meta' => 'structDeclaration',
                 'data' => [
-                    'name' => Internal\name($name, fn ($prefix, $name) => [
-                        "meta" => "name",
-                        "data" => [
-                            "prefix" => $prefix,
-                            "name"   => $name,
-                        ],
-                    ]),
-                    'block' => parse($block),
+                    'name'  => Internal\name($name, fn ($prefix, $name) => $name),
+                    'block' => $block,
                 ],
             ])) {
                 $instructions[] = $structDeclaration;
@@ -490,7 +719,7 @@ namespace OLang {
 
             // ######### value equality check
             if ($valueEqualityCheck = Internal\valueEqualityCheck($source, fn () => [
-                "meta" => "operation",
+                "meta" => "check",
                 "data" => "valueEqualityCheck"
             ])) {
                 $instructions[] = $valueEqualityCheck;
@@ -499,7 +728,7 @@ namespace OLang {
 
             // ######### pointer equality check
             if ($pointerEqualityCheck = Internal\pointerEqualityCheck($source, fn () => [
-                "meta" => "operation",
+                "meta" => "check",
                 "data" => "pointerEqualityCheck"
             ])) {
                 $instructions[] = $pointerEqualityCheck;
@@ -516,22 +745,13 @@ namespace OLang {
             }
 
             // expression 
-            if ($expression = Internal\expression($source, fn ($expression) => [
-                "meta" => "expression",
-                "data" => $expression,
-            ])) {
+            if ($expression = Internal\expression($source, fn ($value) => $value)) {
                 $instructions[] = $expression;
                 continue;
             }
 
             // ######### name
-            if ($name = Internal\name($source, fn ($prefix, $name) => [
-                "meta" => "name",
-                "data" => [
-                    "prefix" => trim($prefix),
-                    "name"   => trim($name),
-                ]
-            ])) {
+            if ($name = Internal\name($source, fn ($prefix, $name) => $name)) {
                 $instructions[] = $name;
                 continue;
             }
