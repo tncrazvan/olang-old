@@ -32,8 +32,6 @@ class CompilerTest extends TestCase {
                 return 1
             }
 
-            if 1 > 2 => validate(email: string#7, phone: string#8)
-
             if 2 > 1 {
                 // then
             } else {
@@ -61,7 +59,29 @@ class CompilerTest extends TestCase {
                 // else if
             }
 
+            // a few more interesting examples
+
+            if 1 > 2 => validate(email: string#7, phone: string#8)
+            else if 1 > 2 => false
+
+            // this looks weird, don't think many would use it
+
+            if 1 > 2 => validate(email: string#7, phone: string#8)
+            else => if 1 > 2 => false
+
             OLANG);
+
+        // TODO: comments should be resolved before parsing, all comments should not be part of the AST (imo).
+        //       Pros: with comments removed from the AST, weird edge cases can be avoided, like commenting in between expressions:
+        //              ```o
+        //                  if 1 > 2 => validate(email: string#7, phone: string#8)
+        //                  // test
+        //                  else => if 1 > 2 => false
+        //              ```
+        //              This currently crashes.
+        //      Cons: will be harder to retrieve comments.
+        //            However this issue could be easilly solved the same way strings are solved, with a dedicated map.
+        //            Ironically the map solution could become very handy in the future for intellisense purposes and static analysis in general.
 
         // declaration, struct user
         $this->assertEquals('structDeclaration', $ast[0]['meta'] ?? '');
