@@ -54,6 +54,13 @@ class CompilerTest extends TestCase {
                 // else if
             }
 
+            // due to how the parser works, this is also allowed
+            if 2 > 1 {
+                // then
+            } else => if 3 === 3 {
+                // else if
+            }
+
             OLANG);
 
         // declaration, struct user
