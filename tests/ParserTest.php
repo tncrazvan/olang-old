@@ -6,7 +6,7 @@ use function OLang\strings;
 
 use PHPUnit\Framework\TestCase;
 
-class CompilerTest extends TestCase {
+class ParserTest extends TestCase {
     public function testStrings() {
         [$source, $strings] = strings(<<<OLANG
             "hello world"
