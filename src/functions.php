@@ -679,12 +679,15 @@ namespace OLang {
 
             if ($found <= 0) {
                 $rebuilt .= $character;
+            } else {
+                $content .= $character;
             }
 
             if (2 === $found) {
-                $content = preg_replace(['/\\\"/','/\\\\\\\/'], ['"','\\'], substr($source, $start, $length));
+                $resolvedContent = substr(preg_replace(['/\\\"/','/\\\\\\\/'], ['"','\\'], $content), 1, -1);
+                $content         = '';
                 $rebuilt .= "string#$stringNumber";
-                $strings[] = $content;
+                $strings[] = $resolvedContent;
                 $found     = 0;
                 $stringNumber++;
             }

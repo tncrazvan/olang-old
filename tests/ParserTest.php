@@ -105,7 +105,20 @@ class ParserTest extends TestCase {
             else => if 1 > 2 => false
             OLANG;
 
-        [$source, $strings]  = strings($source);
+        [$source, $strings] = strings($source);
+
+        $this->assertEquals("test", $strings[0] ?? '');
+        $this->assertEquals("asd", $strings[1] ?? '');
+        $this->assertEquals("awerqw", $strings[2] ?? '');
+        $this->assertEquals("my@email.com", $strings[3] ?? '');
+        $this->assertEquals("111111", $strings[4] ?? '');
+        $this->assertEquals("some@email.com", $strings[5] ?? '');
+        $this->assertEquals("22222", $strings[6] ?? '');
+        $this->assertEquals("some.other@email.com", $strings[7] ?? '');
+        $this->assertEquals("33333333", $strings[8] ?? '');
+        $this->assertEquals("some.other.other@email.com", $strings[9] ?? '');
+        $this->assertEquals("44444444", $strings[10] ?? '');
+
         [$source, $comments] = comments($source);
 
         $ast = ast($source);
