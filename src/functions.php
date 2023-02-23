@@ -599,14 +599,6 @@ namespace Olang\Internal {
         return $items;
     }
 
-    function oneLineComment(string &$source, callable $found) {
-        if (!$comment = consume('/^\s*\\/\\/([\w\W]*)$/Um', 1, $source)) {
-            return null;
-        }
-
-        return $found($comment);
-    }
-
     function integerValue(string &$source, callable $found) {
         if (null === ($integer = consume('/^\s*([0-9]+)/', 1, $source))) {
             return null;
@@ -643,7 +635,90 @@ namespace Olang\Internal {
 
 namespace OLang {
     use Error;
+    
+    /**
+     * @param  string                              $source
+     * @return array{0:string,1:array<int,string>}
+     */
+    function strings($source) {
+        $strings = [];        
+        
+        $rebuilt = '';
 
+        $l       = strlen($source);
+        $found   = 0;
+        $content = '';
+        
+        $start  = 0;
+        $length = 0;
+
+        $stringNumber = 0;
+
+        for ($i = 0; $i < $l; $i++) {
+            try {
+                $character = $source[$i];
+            } catch(\Throwable $e) {
+                echo (string)$e;
+            }
+
+            if ($found > 0) {
+                if ('"' === $character) {
+                    for ($j = 1; '\\' === ($prev = $source[$i - $j] ?? ''); $j++);
+            
+                    if ($j % 2 !== 0) {
+                        $found++;
+                        $length = $i - 1;
+                    }
+                }
+            } else {
+                if ('"' === $character) {
+                    $found++;
+                    $start = $i + 1;
+                }
+            }
+
+            if ($found <= 0) {
+                $rebuilt .= $character;
+            }
+
+            if (2 === $found) {
+                $content = preg_replace(['/\\\"/','/\\\\\\\/'], ['"','\\'], substr($source, $start, $length));
+                $rebuilt .= "string#$stringNumber";
+                $strings[] = $content;
+                $found     = 0;
+                $stringNumber++;
+            }
+        }
+
+
+
+        /** @var array{0:string,1:array<int,string>} */
+        return [ $rebuilt, $strings ];
+    }
+
+
+    /**
+     * @param  string                              $source
+     * @return array{0:string,1:array<int,string>}
+     */
+    function comments($source) {
+        // TODO: save position of comments, x and y coordinates, will be useful for inline docs
+
+        $comments = [];
+        $source   = preg_replace_callback('/\/\/.*$/m', function($group) use (&$comments) {
+            $comments[] = $group[0] ?? '';
+            return '';
+        }, $source);
+
+        /** @var array{0:string,1:array<int,string>} */
+        return [ $source, $comments ];
+    }
+
+    /**
+     * @param  string $source
+     * @throws Error
+     * @return array
+     */
     function parse(
         string $source,
     ) {
@@ -753,15 +828,6 @@ namespace OLang {
             // ######### name
             if ($name = Internal\name($source, fn ($prefix, $name) => $name)) {
                 $instructions[] = $name;
-                continue;
-            }
-
-            // ######### one line comment
-            if ($comment = Internal\oneLineComment($source, fn ($comment) => [
-                'meta' => 'oneLineComment',
-                'data' => $comment,
-            ])) {
-                $instructions[] = $comment;
                 continue;
             }
 

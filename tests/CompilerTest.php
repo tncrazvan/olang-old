@@ -1,31 +1,66 @@
 <?php
 
+use function OLang\comments;
 use function OLang\parse as ast;
+use function OLang\strings;
 
 use PHPUnit\Framework\TestCase;
 
 class CompilerTest extends TestCase {
-    public function testAST() {
-        $ast = ast(<<<OLANG
+    public function testStrings() {
+        [$source, $strings] = strings(<<<OLANG
+            "hello world"
+            OLANG);
+
+        $this->assertNotEmpty($strings);
+        $this->assertEquals("hello world", $strings[0] ?? '');
+        $this->assertEquals("string#0", $source);
+
+        [$source, $strings] = strings(<<<OLANG
+            "hello \ \\\\\"world\""
+            OLANG);
+
+        $this->assertNotEmpty($strings);
+        $this->assertEquals("hello \ \\\"world\"", $strings[0] ?? '');
+        $this->assertEquals("string#0", $source);
+    }
+
+    public function testComments() {
+        [$source, $comments] = comments(<<<OLANG
             struct user {
                 username: string = string#0
                 email: string    = string#1
                 phone: string    = string#2
+            }   // test test
 
+            // test test
+            // test test
+            OLANG);
+        $this->assertNotEmpty($comments);
+    }
+    
+    
+
+    public function testAST() {
+        $source = <<<OLANG
+            struct user {
+                username: string = "test"
+                email: string    = "asd"
+                phone: string    = "awerqw"
                 is_admin => bool {
                     // logic goes here
                 }
             }
 
             validate => bool {
-                email: string = string#3
-                phone: string = string#4
+                email: string = "my@email.com"
+                phone: string = "111111"
 
                 // validation logic
                 
             }
 
-            validate(email: string#5, phone: string#6)
+            validate(email: "some@email.com", phone: "22222")
 
             if 1 > 2 {
                 // some comment
@@ -61,27 +96,19 @@ class CompilerTest extends TestCase {
 
             // a few more interesting examples
 
-            if 1 > 2 => validate(email: string#7, phone: string#8)
+            if 1 > 2 => validate(email: "some.other@email.com", phone: "33333333")
             else if 1 > 2 => false
 
             // this looks weird, don't think many would use it
 
-            if 1 > 2 => validate(email: string#7, phone: string#8)
+            if 1 > 2 => validate(email: "some.other.other@email.com", phone: "44444444")
             else => if 1 > 2 => false
+            OLANG;
 
-            OLANG);
+        [$source, $strings]  = strings($source);
+        [$source, $comments] = comments($source);
 
-        // TODO: comments should be resolved before parsing, all comments should not be part of the AST (imo).
-        //       Pros: with comments removed from the AST, weird edge cases can be avoided, like commenting in between expressions:
-        //              ```o
-        //                  if 1 > 2 => validate(email: string#7, phone: string#8)
-        //                  // test
-        //                  else => if 1 > 2 => false
-        //              ```
-        //              This currently crashes.
-        //      Cons: will be harder to retrieve comments.
-        //            However this issue could be easilly solved the same way strings are solved, with a dedicated map.
-        //            Ironically the map solution could become very handy in the future for intellisense purposes and static analysis in general.
+        $ast = ast($source);
 
         // declaration, struct user
         $this->assertEquals('structDeclaration', $ast[0]['meta'] ?? '');
@@ -108,8 +135,6 @@ class CompilerTest extends TestCase {
         $this->assertEquals('callableDeclaration', $ast[0]['data']['block'][3]['meta'] ?? '');
         $this->assertEquals('is_admin', $ast[0]['data']['block'][3]['data']['name'] ?? '');
         $this->assertEquals('bool', $ast[0]['data']['block'][3]['data']['returnType'] ?? '');
-        $this->assertEquals('oneLineComment', $ast[0]['data']['block'][3]['data']['block'][0]['meta'] ?? '');
-        $this->assertEquals(' logic goes here', $ast[0]['data']['block'][3]['data']['block'][0]['data'] ?? '');
         $this->assertEquals(null, $ast[0]['data']['block'][3]['data']['expression'] ?? '');
 
         // declaration, callable validate
@@ -128,9 +153,6 @@ class CompilerTest extends TestCase {
         $this->assertEquals('string', $ast[1]['data']['block'][1]['data']['type'] ?? '');
         $this->assertEquals('phone', $ast[1]['data']['block'][1]['data']['name'] ?? '');
         $this->assertEquals('string#4', $ast[1]['data']['block'][1]['data']['default'][0] ?? '');
-
-        $this->assertEquals('oneLineComment', $ast[1]['data']['block'][2]['meta'] ?? '');
-        $this->assertEquals(' validation logic', $ast[1]['data']['block'][2]['data'] ?? '');
 
         $this->assertEquals(null, $ast[1]['data']['expression'] ?? '');
 
