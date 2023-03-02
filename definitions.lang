@@ -1,0 +1,43 @@
+empty :=
+whiteSpace := \n| |\t|<whiteSpace>
+letter := A|B|C|D|E|F|G|H|I|J|K|L|M|N|O|P|Q|R|S|T|U|V|W|X|Y|Z
+letters := <letter><empty|letters>
+digit := 0|1|2|3|4|5|6|7|8|9
+digits := <digit><underscore|digits|empty>
+numberExtension := .<0|1|2|3|4|5|6|7|8|9><empty|digits>
+number := <numberExtension>|<<digits><empty|underscore|digits><empty|numberExtension>>
+underscore := _
+parenthesisOpen := (
+parenthesisClose := )
+curlyOpen := {
+curlyClose := }
+quotes := "
+
+primitive := true|false|<number>
+
+stringContent := <.|stringContent>
+string := <quotes><stringContent|empty><quotes>
+
+name := <letters><empty|letters|number|underscore>
+
+expression := <primitive|string|name|callableCall>|<<operation><primitive|string|callableCall>>
+
+argumentsContinued := ,<empty|arguments>
+arguments := <expression><empty|argumentsContinued>
+
+operation :=  ! | + | - | / | * | and | or | .and | .or | ^ | % | > | < | >= | <= | == | != | << | >> | === | !==
+
+
+scope := New scope, everything is allowed just like in the main scope.
+         Local state is destroyed when out of scope.
+
+block := <curlyOpen><scope><curlyClose>
+
+callableDeclaration := <name><empty|whiteSpace> => <empty|whiteSpace><empty|name>|<block>
+
+
+callableCall := <name><whiteSpace|empty><parenthesisOpen><arguments><parenthesisClose>
+
+
+
+

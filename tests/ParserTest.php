@@ -31,7 +31,7 @@ class ParserTest extends TestCase {
                 username: string = string#0
                 email: string    = string#1
                 phone: string    = string#2
-            }   // test test
+            } // test test
 
             // test test
             // test test
@@ -47,6 +47,7 @@ class ParserTest extends TestCase {
                 username: string = "test"
                 email: string    = "asd"
                 phone: string    = "awerqw"
+                
                 is_admin => bool {
                     // logic goes here
                 }
@@ -103,6 +104,24 @@ class ParserTest extends TestCase {
 
             if 1 > 2 => validate(email: "some.other.other@email.com", phone: "44444444")
             else => if 1 > 2 => false
+
+            next => {
+                // some logic
+            }
+
+            // TODO: implicit observable parameters using "$"
+            \$password1 = "test"
+            \$password2 = "test"
+
+            // TODO: reactive statements
+            // $:if \$password1 == \$password2 => next()
+
+            $:{
+                next()
+            }
+
+            $:next()
+
             OLANG;
 
         [$source, $strings] = strings($source);
@@ -176,6 +195,8 @@ class ParserTest extends TestCase {
         $this->assertEquals('string#5', $ast[2]['data']['arguments'][0]['value']['data'][0] ?? '');
         $this->assertEquals('phone', $ast[2]['data']['arguments'][1]['key'] ?? '');
         $this->assertEquals('string#6', $ast[2]['data']['arguments'][1]['value']['data'][0] ?? '');
+
+        //TODO: keep up with unit tests
     }
 
 

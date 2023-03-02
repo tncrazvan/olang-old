@@ -174,7 +174,7 @@ namespace Olang\Internal {
         callable $found
     ) {
         $copy = "$source";
-        if (!$parameter = consume('/^\s*((const|let|struct)?\s+)?([A-z][A-z0-9_]+)?\s*(:)?\s*([A-z][A-z0-9_]+)?\s*(=)?/', null, $source)) {
+        if (!$parameter = consume('/^\s*((const|let|struct)?\s+)?([$A-z][A-z0-9_]+)?\s*(:)?\s*([A-z][A-z0-9_]+)?\s*(=)?/', null, $source)) {
             return null;
         }
 
@@ -461,6 +461,25 @@ namespace Olang\Internal {
         return $found($name, \Olang\parse($block ?? ''));
     }
 
+    function observerDeclaration(string &$source, callable $found) {
+        $copy = "$source";
+        if (!$observer = consume('/^\s*(\$:)/', 1, $source)) {
+            return null;
+        }
+
+        if ($observerBlock = block($source)) {
+            return $found(\Olang\parse($observerBlock ?? ''), null);
+        }
+
+        if ($observerExpression = expression($source, fn ($value) => $value)) {
+            return $found(null, $observerExpression);
+        }
+
+        
+        $source = $copy;
+        throw new Error("Invalid syntax, expecting a block or expression when declaring and observer.\n$copy");
+    }
+
     function callableDeclaration(string &$source, callable $found) {
         $copy = "$source";
         if (!$callable = consume('/^\s*([A-z][A-z0-9_]+)?\s*=>\s*([A-z][A-z0-9_]+)?\s*/', null, $source)) {
@@ -470,8 +489,10 @@ namespace Olang\Internal {
         if (!($callable[0] ?? '')) {
             throw new Error("Invalid syntax, expecting a name when declaring a callable.\n$copy");
         }
+
         if (!($callable[1] ?? '')) {
-            throw new Error("Invalid syntax, expecting a return type when declaring a callable.\n$copy");
+            $callable[1] = '';
+            // throw new Error("Invalid syntax, expecting a return type when declaring a callable.\n$copy");
         }
 
         if ($block = block($source)) {
@@ -733,6 +754,19 @@ namespace OLang {
             }
             $previous = $source;
             $copy     = $source;
+
+            // ######### observer declaration
+            if ($callableCall = Internal\observerDeclaration($source, fn ($block, $expression) => [
+                "meta" => "observerDeclaration",
+                "data" => [
+                    "block"      => $block,
+                    "expression" => $expression,
+                ]
+            ])) {
+                $instructions[] = $callableCall;
+                continue;
+            }
+
             // ######### callable declaration
             if ($callableDeclaration = Internal\callableDeclaration($source, fn (
                 $name,
