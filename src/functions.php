@@ -363,7 +363,7 @@ namespace Olang\Internal {
 
     function name(string &$source, callable $found) {
         $copy = "$source";
-        if ($name = consume('/^\s*(:{2})?([A-z][A-z0-9_]+)/', 2, $source)) {
+        if ($name = consume('/^\s*(:{2})?([A-z][A-z0-9_.]+)/', 2, $source)) {
             return $found(...$name);
         }
 
@@ -611,9 +611,9 @@ namespace Olang\Internal {
 
     function callableArguments(string &$source, callable $found) {
         $items = [];
-        while ($argument = consume('/^\s*([A-z][A-z0-9_]+):\s*([A-z][A-z0-9_#]+)\s*(,|$)/U', 3, $source)) {
+        while ($argument = consume('/^\s*([A-z][A-z0-9_]+)?:?\s*([A-z][A-z0-9_#]+)\s*(,|$)/U', 3, $source)) {
             if (null !== ($value = expression($argument[1], fn ($value) => $value))) {
-                $items[] = $found($argument[0], $value);
+                $items[] = $found($argument[0] ?? '', $value);
             }
         }
 
@@ -672,10 +672,70 @@ namespace Olang\Internal {
     }
 }
 
+namespace OLang\Compiler {
+    /**
+     * @param  array  $ast
+     * @return string
+     */
+    function php($ast, &$strings = []) {
+        $output = '';
+
+        foreach ($ast as $instruction) {
+            $meta = $instruction['meta'] ?? '';
+            $data = $instruction['data'] ?? '';
+            echo "";
+
+            if ($meta && $data) {
+                $name       = $data['name']       ?? '';
+                $returnType = $data['returnType'] ?? '';
+                $block      = $data['block']      ?? [];
+                $expression = $data['expression'] ?? '';
+                $arguments  = $data['arguments']  ?? [];
+                if ('callableDeclaration' === $meta) {
+                    if ($block) {
+                        $returns = $returnType?":$returnType":'';
+                        $content = php($block, $strings);
+                        $output .= <<<PHP
+                            function $name()$returns{
+                                $content
+                            }\n
+                            PHP;
+                    }
+                } else if ('callableCall' === $meta) {
+                    $args = [];
+
+                    foreach ($arguments as $argument) {
+                        $argKey   = $argument['key'] ?? '';
+                        $argValue = $argument['value'] ? php([$argument['value']], $strings):false;
+                        if ($argKey) {
+                            $args[] = "$argKey: $argValue";
+                        } else {
+                            $args[] = $argValue;
+                        }
+                    }
+                    $args = join(',', $args);
+
+                    $output .= <<<PHP
+                        $name($args);
+                        PHP;
+                } else if ('expression' === $meta) {
+                    foreach ($data as $expression) {
+                        if (str_starts_with(($expression = (string)$expression), 'string#')) {
+                            $index = (int)substr($expression, 7);
+                            $output .= '"'.addslashes($strings[$index]).'"';
+                        }
+                    }
+                }
+            }
+        }
+
+        return $output;
+    }
+}
 
 namespace OLang {
     use Error;
-    
+
     /**
      * @param  string                              $source
      * @return array{0:string,1:array<int,string>}

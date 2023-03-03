@@ -32,7 +32,7 @@
             "request": "launch",
             "program": "${workspaceFolder}/vendor/bin/phpunit",
             "cwd": "${workspaceFolder}",
-            "args": [ "tests/ParserTest.php" ],
+            "args": [ "tests/CompilerTest.php" ],
             "runtimeArgs": [
                 "-dxdebug.start_with_request=yes",
                 "-dxdebug.mode=debug",
