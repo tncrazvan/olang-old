@@ -122,6 +122,9 @@ class ParserTest extends TestCase {
 
             $:next()
 
+
+            export { validate }
+
             OLANG;
 
         [$source, $strings] = strings($source);

@@ -620,6 +620,25 @@ namespace Olang\Internal {
         return $items;
     }
 
+    function exportDeclaration(string &$source, callable $found) {
+        $copy = "$source";
+        if (!consume('/^\s*(export)/', 1, $source)) {
+            $source = $copy;
+            return null;
+        }
+
+        $block = block($source, true, 'The `export` statement requires a block definition, none found.');
+
+        $names = [];
+        while (($name = name($block, fn ($prefix, $value) => $value)) || consume('/^\s*(,)/', 1, $block)) {
+            if ($name) {
+                $names[] = $name;
+            }
+        }
+
+        return $found($names);
+    }
+
     function integerValue(string &$source, callable $found) {
         if (null === ($integer = consume('/^\s*([0-9]+)/', 1, $source))) {
             return null;
@@ -752,8 +771,19 @@ namespace OLang {
             if ($previous === $source) {
                 throw new Error("Syntax error, unknown syntax.\n$previous");
             }
+
             $previous = $source;
             $copy     = $source;
+
+
+            // ######### export declaration
+            if ($exportDeclaration = Internal\exportDeclaration($source, fn ($names) => [
+                "meta" => "exportDeclaration",
+                "data" => $names,
+            ])) {
+                $instructions[] = $exportDeclaration;
+                continue;
+            }
 
             // ######### observer declaration
             if ($callableCall = Internal\observerDeclaration($source, fn ($block, $expression) => [
